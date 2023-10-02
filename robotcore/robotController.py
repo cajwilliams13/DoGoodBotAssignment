@@ -24,8 +24,9 @@ class RobotController:
     """Controls robot, manages simulation and ROS transmissions"""
     # todo: Separate out a RosRobot class
 
-    def __init__(self, path_json, swift_env=None, ros_client=None, transform=None, bake=None, robot=None):
-        assert type(bake) == str or bake is None
+    def __init__(self, path_json, swift_env=None, ros_client=None, transform=None, bake=None, robot=None, gripper=None):
+        if type(bake) != str and bake is not None:
+            raise ValueError(f"Bake filename is not a valid type: {type(bake)},  {bake}")
 
         self.bake_filename = bake
         self.bake_data = []
@@ -35,35 +36,25 @@ class RobotController:
         self.path_json_file = path_json
 
         self.path = PathPlan(json_data=open(self.path_json_file))
-        # self.path.test()  # Just in case
         self.end_effector_pos = self.path.start_pos
-
-        self.instruction_index = 0
-        self.current_trajectory = None
 
         # Perform sanity checks on the position
         if lin.norm(np.array([a[3] for a in self.end_effector_pos.A[:3]])) < 50e-3:
             # Robot end effector is likely too close to the origin
             raise ValueError("Robot start position is too close to the origin")
 
+        self.instruction_index = 0
+        self.current_trajectory = None
+
         self.base_offset = transform if transform is not None else SE3()
-        self.gripper_base_offset = SE3(-4e-3, -2e-3, 81e-3)
-        self.tool_offset = SE3(0, 0, 210e-3)
-        self.inv_tool_offset = SE3(np.linalg.inv(self.tool_offset.A))
 
         self.arm = UR3Lin() if robot is None else robot()
 
-        self.gripper = Gripper(swift_env)
-        self.gripper.add_to_env(swift_env)
+        self.gripper = Gripper(swift_env) if gripper is None else gripper(swift_env)
 
-        if len(self.arm.q) == 7:
-            self.arm.q = [-0.5, 0, -pi / 2, 0, 0, 0, 0]  # Known safe start values
-            for i in range(len(self.arm.links)):
-                self.arm.links[i].qlim = [-pi, pi]
-            self.arm.links[0].qlim = [-0.8, 0]
-            self.arm.links[2].qlim = [-pi / 2, 0]
-            self.arm.links[3].qlim = [-pi / 2, 0]
-            self.arm.links[4].qlim = [-pi, 0]
+        self.gripper_base_offset = self.gripper.base_offset
+        self.tool_offset = self.gripper.tool_offset
+        self.inv_tool_offset = SE3(np.linalg.inv(self.tool_offset.A))
 
         self.arm.base = self.base_offset * self.arm.base
 
@@ -264,16 +255,6 @@ class RobotController:
     def get_end_effector_transform(self):
         return self.arm.fkine(self.arm.q)
 
-    def prove_move(self, transform):
-        self.current_trajectory['joints'] = self.get_trajectory(transform, rapid=True)
-        while self.current_trajectory['joints']:
-            self._process_current_step(do_bake=False)
-            self.swift_env.step(0.01)
-
-        print(f"Robot is expected to be at: \n{(self.base_offset * transform * self.inv_tool_offset).A}")
-        print(f"Robot is actually at: \n{self.arm.fkine(self.arm.q).A}")
-        self.swift_env.hold()
-
     # ----------- Sims and plots -----------
     def plot_reach(self, step_sizes: list, z_threshold=0.7, plot_plt=True, plot_swift=False):
         """
@@ -378,7 +359,7 @@ class RobotController:
     def _save_bake(self):
         if self.bake_filename is None:
             return
-        safe_write_to_file('bakes\\' + self.bake_filename, json.dumps(self.bake_data), new_file=True)
+        safe_write_to_file('bakes\\' + self.bake_filename, json.dumps(self.bake_data), new_file=True, extension='bake')
 
     def _read_bake(self, bakefile):
         if bakefile[-3:] == 'bag':

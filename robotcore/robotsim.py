@@ -5,6 +5,7 @@ from robotController import RobotController
 from pathplanner import produce_path_plan
 from pathplanner import read_scene
 from props import Prop
+from os import path
 
 
 def create_sim_env(env, master_transform=None):
@@ -22,9 +23,9 @@ def create_sim_env(env, master_transform=None):
     gate_len = 1.215  # Length of gate
 
     props = [
-        Prop('objects\\Estop', env, transform=master_transform * table_offset * SE3(-1, 0.65, 2e-3), color=(100, 0, 0)),
-        Prop('objects\\Pallet_table', env, transform=master_transform * table_offset, color=(99, 71, 32)),
-        Prop('objects\\extinguisher', env, transform=master_transform * SE3(-0.7, 1.35, 0), color=(102, 15, 13))
+        Prop(path.join('objects', 'Estop'), env, transform=master_transform * table_offset * SE3(-1, 0.65, 2e-3), color=(100, 0, 0)),
+        Prop(path.join('objects', 'Pallet_table'), env, transform=master_transform * table_offset, color=(99, 71, 32)),
+        Prop(path.join('objects', 'extinguisher'), env, transform=master_transform * SE3(-0.7, 1.35, 0), color=(102, 15, 13))
     ]
 
     # Use XYZRz encoded position
@@ -35,11 +36,11 @@ def create_sim_env(env, master_transform=None):
 
     gate_locations += [(*g[:2], 0.6, g[3]) for g in gate_locations]  # Add a second layer of gates
 
-    props.append(Prop('objects\\Estop', env, color=(100, 0, 0), transform=master_transform * table_offset *
+    props.append(Prop(path.join('objects', 'Estop'), env, color=(100, 0, 0), transform=master_transform * table_offset *
                                                                           SE3(1.82 - gate_len, gate_len - 0.02, 0.561)))
 
     for gate in gate_locations:
-        props.append(Prop('objects\\w2h4_fence', env, transform=master_transform, position=gate, color=(50, 50, 50)))
+        props.append(Prop(path.join('objects', 'w2h4_fence'), env, transform=master_transform, position=gate, color=(50, 50, 50)))
 
     return props
 
@@ -54,7 +55,7 @@ def full_scene_sim(scene_file='scene.json'):
     create_sim_env(env, scene_offset)
 
     traj_planner = RobotController("path_plan.json", swift_env=env, transform=scene_offset * SE3(0, 0, 0.65),
-                                   bake='bake_test.bake')
+                                   bake='bake_test')
     # Tool offset needed for brick manipulation
     tool_offset = traj_planner.tool_offset
 
