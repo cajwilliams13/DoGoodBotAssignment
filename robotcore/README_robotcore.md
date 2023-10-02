@@ -51,10 +51,29 @@ If both a `swift_env` and `ros_client` are specified, the simulated environment 
 ### Running a Simulation
 
 ```python
-simulation_actions = controller.simulation_step()
+simulation_actions = controller.simulation_step(input_actions)
 ```
 `simulation_actions` returns the current trajectory step, as well as information on actions required beyond the robot,
 like moving an object or stopping the simulation.
+
+`input_actions` provides relevant simulation sensing to the robot.
+
+#### Action Format:
+```python
+action = {  # Only stop is guaranteed to be present
+    'stop': bool, True if robot is finished acting
+    'point': SE3, Transform of robot target
+    'joints': [np.array/list], list of moves queued to reach point
+    'action': string, control code describing current action 
+              (m: move, grb: grab, rel: release, rpd: fast move)
+    'gripper': [list], list of upcoming poses for gripper to take
+    'grip': int, id of object being grabbed
+    'release': int, id of object being released
+}
+```
+
+This is the intended way for the robot to interact with and sense the 
+environment.
 ### Baking and Playback
 
 #### To save robot bakes:

@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.linalg as lin
 import roboticstoolbox as rtb
-import roslibpy
 
 from pathplanner import PathPlan
 from props import Prop
@@ -20,11 +19,26 @@ from UR3Lin.UR3Lin import UR3Lin
 from myUtils import eng_unit, plural, safe_write_to_file
 
 
+def read_rosbag(rosbagfile):
+    # create reader instance and open for reading
+    with AnyReader([Path(rosbagfile)]) as reader:
+        connection = [x for x in reader.connections if x.topic == '/joint_states']
+        positions = []
+        # print(connection.msgdef)
+        for connection, timestamp, rawdata in reader.messages(connection):
+            msg = reader.deserialize(rawdata, connection.msgtype)
+            positions.append(msg.__dict__['position'])  # Couldn't find the intended retrieval function.
+    bake = [{'stop': False, 'action': 'm', 'joints': j} for j in positions]
+    bake[-1]['stop'] = True
+    print(f"Loaded bagfile with {len(bake)} {plural('position', len(bake))}")
+    return bake
+
+
 class RobotController:
     """Controls robot, manages simulation and ROS transmissions"""
     # todo: Separate out a RosRobot class
 
-    def __init__(self, path_json, swift_env=None, ros_client=None, transform=None, bake=None, robot=None, gripper=None):
+    def __init__(self, path_json, env_context, transform=None, bake=None, robot=None, gripper=None):
         if type(bake) != str and bake is not None:
             raise ValueError(f"Bake filename is not a valid type: {type(bake)},  {bake}")
 
@@ -50,7 +64,7 @@ class RobotController:
 
         self.arm = UR3Lin() if robot is None else robot()
 
-        self.gripper = Gripper(swift_env) if gripper is None else gripper(swift_env)
+        self.gripper = Gripper(env_context) if gripper is None else gripper(env_context)
 
         self.gripper_base_offset = self.gripper.base_offset
         self.tool_offset = self.gripper.tool_offset
@@ -61,97 +75,8 @@ class RobotController:
         self.step_count = 5
         self.interp_count = 4
 
-        self.has_env = swift_env is not None
-        self.is_transmitting = ros_client is not None and not self.has_env  # Defer to simulation rendering
-        self.swift_env = swift_env
-        self.ros_client = ros_client
-
-        if not self.has_env and not self.is_transmitting:  # One of these should be present
-            raise ValueError("No env or client attached")
-
-        if self.has_env:  # Default to 
-            self.arm.add_to_env(self.swift_env)
-
-        elif self.is_transmitting:
-            print('Setting up ROS connection')
-            self.control_topic = None
-            self.subscriber = None
-            self.last_message = None
-            self._setup_ros_client()
-
-    # ------------ ROS Handling ------------
-    def _save_message(self, message):
-        """Callback function to store ROS message"""
-        self.last_message = message
-
-    def _setup_ros_client(self):
-        self.ros_client.run()
-        self.subscriber = roslibpy.Topic(self.ros_client, '/joint_states',
-                                         'sensor_msgs/JointState')  # Joint state subscriber
-        self.subscriber.subscribe(lambda l: self._save_message(l))  # Bind callback
-
-        self.control_topic = roslibpy.Topic(self.ros_client, '/scaled_pos_joint_traj_controller/command',
-                                            'trajectory_msgs/JointTrajectory')
-        self.control_topic.advertise()
-
-    def _send_ros_message(self, joints):
-        assert self.is_transmitting
-        assert len(joints) == 6
-        print(f"Going to j: {joints}")
-        joint_trajectory_msg = {
-            'joint_names': ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint',
-                            'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint'],
-            'points': [{
-                'positions': [float(j) for j in joints],
-                'time_from_start': {'secs': 5, 'nsecs': 0}
-                # Time for reaching the desired position, which is 5 seconds in this case
-            }]
-        }
-        self.control_topic.publish(roslibpy.Message(joint_trajectory_msg))
-
-    def transmit_bake(self, bakefile):
-        """Transmit previously recorded robot actions to ROS"""
-        if self.playbake_data is None:
-            self.playbake_data = self._read_bake(bakefile)
-
-        joint_trajectory_msg = {  # This is the reset move
-            'joint_names': ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint',
-                            'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint'],
-            'points': [{
-                'positions': [float(j) for j in self.playbake_data[0]['joints']][:6],
-                'time_from_start': {'secs': 5, 'nsecs': 0}
-            }]
-        }
-        self.control_topic.publish(roslibpy.Message(joint_trajectory_msg))
-        time.sleep(5)
-
-        for entry in self.playbake_data:
-            self.current_trajectory = {'stop': False, **entry, 'joints': [entry['joints']]}
-            self.arm.q = entry['joints'][:]
-            self._send_ros_message(entry['joints'])
-            t = time.time()
-            time.sleep(0.1)
-            while any(abs(self.last_message['position'] - self.arm.q) > 5e-3):  # Wait for joints to reach target
-                if time.time() > t + 1:
-                    t = time.time()
-                    print(abs(self.last_message['position'] - self.arm.q).tolist())  # Print positional error at 1Hz
-
-        return True, self.current_trajectory
-
-    @staticmethod
-    def read_rosbag(rosbagfile):
-        # create reader instance and open for reading
-        with AnyReader([Path(rosbagfile)]) as reader:
-            connection = [x for x in reader.connections if x.topic == '/joint_states']
-            positions = []
-            # print(connection.msgdef)
-            for connection, timestamp, rawdata in reader.messages(connection):
-                msg = reader.deserialize(rawdata, connection.msgtype)
-                positions.append(msg.__dict__['position'])  # Couldn't find the intended retrieval function.
-        bake = [{'stop': False, 'action': 'm', 'joints': j} for j in positions]
-        bake[-1]['stop'] = True
-        print(f"Loaded bagfile with {len(bake)} {plural('position', len(bake))}")
-        return bake
+        self.swift_env = env_context
+        self.arm.add_to_env(self.swift_env)
 
     # -------- Trajectory Processes --------
     def _get_rapid_trajectory(self, j_start, end):
@@ -314,9 +239,6 @@ class RobotController:
 
     def simulation_step(self):
         """Simulate next action in env"""
-        if not self.has_env:
-            raise EnvironmentError("Environment must be attached for simulation")
-
         # If no trajectory/end of trajectory, get the next trajectory
         if self.current_trajectory is None or not len(self.current_trajectory['joints']):
             if not self.get_next_trajectory():
@@ -355,6 +277,7 @@ class RobotController:
             'joints': [float(c) for c in current_step],
             'gripper': [float(g) for g in gripper_val] if gripper_val is not None else None
         })
+        print(action)
 
     def _save_bake(self):
         if self.bake_filename is None:
@@ -363,7 +286,7 @@ class RobotController:
 
     def _read_bake(self, bakefile):
         if bakefile[-3:] == 'bag':
-            return self.read_rosbag(bakefile)[:]
+            return read_rosbag(bakefile)[:]
         self.bake_data = json.load(open(bakefile))
         return self.bake_data[:]  # Slice to copy data, else gets bound to the file unintentionally
 

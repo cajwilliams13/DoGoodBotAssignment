@@ -54,7 +54,7 @@ def full_scene_sim(scene_file='scene.json'):
     scene_offset = SE3(0, 0, 0) * SE3.Rz(0, unit='deg')  # Master transform to move the entire robot + room setup
     create_sim_env(env, scene_offset)
 
-    traj_planner = RobotController("path_plan.json", swift_env=env, transform=scene_offset * SE3(0, 0, 0.65),
+    traj_planner = RobotController("path_plan.json", env, transform=scene_offset * SE3(0, 0, 0.65),
                                    bake='bake_test')
     # Tool offset needed for brick manipulation
     tool_offset = traj_planner.tool_offset

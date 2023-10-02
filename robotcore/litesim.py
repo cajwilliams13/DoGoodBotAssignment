@@ -12,7 +12,7 @@ def lite_scene_sim():
     env.launch(realtime=True)
 
     scene_offset = SE3(0, 0, 0)  # Master transform to move the entire robot + room setup
-    traj_planner = RobotController("path_plan.json", swift_env=env,
+    traj_planner = RobotController("path_plan.json", env,
                                    transform=scene_offset * SE3(0, 0, 0.65), robot=UR3)  # For in-person demo
 
     # Place scene
