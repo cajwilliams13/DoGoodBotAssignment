@@ -40,6 +40,12 @@ class UR3Lin(DHRobot3D):
         self.base = self.base * SE3.Rx(pi / 2) * SE3.Ry(pi / 2)
         self.q = qtest
 
+        self.q = [-0.5, 0, -pi / 2, 0, 0, 0, 0]  # Known safe start values
+        self.links[0].qlim = [-0.8, 0]
+        self.links[2].qlim = [-pi / 2, 0]
+        self.links[3].qlim = [-pi / 2, 0]
+        self.links[4].qlim = [-pi, 0]
+
     @staticmethod
     def _create_DH():
         """
@@ -49,7 +55,7 @@ class UR3Lin(DHRobot3D):
         a = [0, 0.24, 0.21, 0, 0, 0]
         d = [0.1599, 0.1357, 0.1197, 0.08, 0.08, 0]
         alpha = [-pi / 2, -pi, pi, -pi / 2, -pi / 2, 0]
-        qlim = [[-2*pi, 2*pi] for _ in range(6)]
+        qlim = [[-pi, pi] for _ in range(6)]
         for i in range(6):
             link = rtb.RevoluteDH(d=d[i], a=a[i], alpha=alpha[i], qlim=qlim[i])
             links.append(link)

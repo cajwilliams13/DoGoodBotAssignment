@@ -9,14 +9,14 @@ def plural(single, count, plural_form=None):
     return single if count == 1 else plural_form
 
 
-def safe_write_to_file(filename, data, new_file=False):
+def safe_write_to_file(filename, data, new_file=False, extension=''):
     directory = os.path.dirname(filename)
     if directory and not os.path.exists(directory):
         os.makedirs(directory)
         
     if new_file and os.path.exists(filename):
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        filename = f"{filename}_{timestamp}"
+        filename = f"{filename}_{timestamp}.{extension}"
 
     with open(filename, 'w') as f:
         f.write(data)

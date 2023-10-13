@@ -21,6 +21,9 @@ class Gripper(DHRobot3D):
         self.close = [-0.2 * pi, 0.2 * pi]
         self.finger_offset = SE3(-50e-3, 0, 60e-3)  # Offset of the first finger joint
 
+        self.base_offset = SE3(-4e-3, -2e-3, 81e-3)
+        self.tool_offset = SE3(0, 0, 210e-3)
+
         # DH links
         links = [rtb.RevoluteDH(d=0, a=0, alpha=0, qlim=[0, 0])]  # Need to have one link, this should never move
 
@@ -37,6 +40,7 @@ class Gripper(DHRobot3D):
 
         self.q = qtest
         self.q_last = self.open
+        self.add_to_env(env)
 
     def setq(self, q):
         """Update finger positions and rotation"""

@@ -9,7 +9,6 @@ import os
 class Prop(DHRobot3D):
     """Oh look, it's a prop.
        It's there, doing its thing. Don't overthink it."""
-    # Todo: Known issue where file paths are not formatted properly on linux
 
     def __init__(self, filename, env, position=None, transform=None, color=None):
         links = [rtb.PrismaticDH(theta=0, a=0, alpha=pi/2, qlim=[0, 0])]  # No links needed, but len 0 is forbidden
