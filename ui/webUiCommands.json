@@ -1,0 +1,19 @@
+[
+  {
+    "type": "AUTO_HOME"
+  },
+  {
+    "type": "INCREMENT_Q"
+  },
+  {
+    "type": "SET_END_EFFECTOR_POSE",
+    "pose": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  }
+]
