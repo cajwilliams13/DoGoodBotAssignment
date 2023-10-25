@@ -89,29 +89,60 @@ class RobotController:
 
         return joint_states
 
-    def get_trajectory(self, end, start=None, rapid=False):
+    def _get_rmrc_trajectory(self, start, end, duration):
+        """RMRC function"""
+        trajectory = rtb.ctraj(start, end, self.step_count)
+        joint_states = []
+        q = self.arm.q
+        dt = duration / self.step_count
+
+        for i in range(len(trajectory) - 1):
+            # Current and next pose
+            T_current = trajectory[i]
+            T_next = trajectory[i + 1]
+
+            # v = displacement difference
+            v = np.array(T_next.t - T_current.t).flatten() / dt
+
+            J = self.arm.jacob0(q)
+            J_pseudo_inv = np.linalg.pinv(J)
+
+            q_dot = np.dot(J_pseudo_inv, v)
+
+            # Linear integration
+            q_next = q + q_dot * dt
+
+            joint_states.append(q_next)
+            q = q_next
+
+        return joint_states
+
+    def get_trajectory(self, end, start=None, movement_mode=None, duration=20):
         """Get trajectory to arbitrary point"""
         self.end_effector_pos = self.get_end_effector_transform()
         end = self.base_offset * end * self.inv_tool_offset
 
         # If rapid, just interpolate joint states
-        if rapid:
+        if movement_mode == "MODE_RAPID":
             start = self.arm.q if start is None else self._perform_ik_search(start)[0]
             return self._get_rapid_trajectory(start, end)
-
-        start = self.end_effector_pos if start is None else self.base_offset * start
-        return self._get_precise_trajectory(start, end)
+        elif movement_mode == "MODE_RMRC":
+            start = self.end_effector_pos if start is None else self.base_offset * start
+            return self._get_rmrc_trajectory(start, end, duration)
+        elif movement_mode == "MODE_SIMPLE":
+            start = self.end_effector_pos if start is None else self.base_offset * start
+            return self._get_precise_trajectory(start, end)
 
     def get_next_trajectory(self):
         """Get the next trajectory from path"""
-        # raise NotImplementedError() # This code should read the queue
+        # MODES = MODE_RAPID, MODE_RMRF, MODE_SIMPLE
         try:
             self.has_next_instruction = True
             self.current_request = self.commands.get(block=False)
             if self.current_request["command"] == "GO_TO_POSE_REQUEST":
                 end = self.current_request["data"]["point"]
-                self.current_trajectory["joints"] = self.get_trajectory(end, rapid=self.current_request["data"][
-                    "movement_mode"])
+                self.current_trajectory["joints"] = self.get_trajectory(end, movement_mode=self.current_request["data"][
+                    "movement_mode"], duration=self.current_request["data"].get("duration", 20))
                 # print(f"Moving to transform:\n{end}")
 
             elif self.current_request["command"] == "GRAB_REQUEST":
