@@ -11,11 +11,9 @@ from ir_support.robots.DHRobot3D import DHRobot3D
 class Gripper(DHRobot3D):
     """Gripper Class holds two finger classes and manages both"""
 
-    def __init__(self, env):
+    def __init__(self):
         self.left_finger = GripperFinger()
         self.right_finger = GripperFinger()
-        self.left_finger.add_to_env(env)
-        self.right_finger.add_to_env(env)
 
         self.open = [-0.4 * pi, 0.4 * pi]
         self.close = [-0.2 * pi, 0.2 * pi]
@@ -40,7 +38,6 @@ class Gripper(DHRobot3D):
 
         self.q = qtest
         self.q_last = self.open
-        self.add_to_env(env)
 
     def setq(self, q):
         """Update finger positions and rotation"""
@@ -55,6 +52,12 @@ class Gripper(DHRobot3D):
 
         self.q = self.q  # Fix issue described by Quang regarding overloading
         self.q_last = q
+
+    def add_to_env(self, env):
+        self.left_finger.add_to_env(env)
+        self.right_finger.add_to_env(env)
+        self.add_to_env(env)
+
 
 
 class GripperFinger(DHRobot3D):

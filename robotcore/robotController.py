@@ -1,70 +1,41 @@
-import json
-import time
-from math import pi
-from pathlib import Path
-
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.linalg as lin
 import roboticstoolbox as rtb
 
-from pathplanner import PathPlan
 from props import Prop
-from rosbags.highlevel import AnyReader  # For rosbag playback
 from spatialmath import SE3
 from tqdm import tqdm
 
-from Gripper.Gripper import Gripper
-from UR3Lin.UR3Lin import UR3Lin
-from myUtils import eng_unit, plural, safe_write_to_file
-
-
-def read_rosbag(rosbagfile):
-    # create reader instance and open for reading
-    with AnyReader([Path(rosbagfile)]) as reader:
-        connection = [x for x in reader.connections if x.topic == '/joint_states']
-        positions = []
-        # print(connection.msgdef)
-        for connection, timestamp, rawdata in reader.messages(connection):
-            msg = reader.deserialize(rawdata, connection.msgtype)
-            positions.append(msg.__dict__['position'])  # Couldn't find the intended retrieval function.
-    bake = [{'stop': False, 'action': 'm', 'joints': j} for j in positions]
-    bake[-1]['stop'] = True
-    print(f"Loaded bagfile with {len(bake)} {plural('position', len(bake))}")
-    return bake
+from queue import Queue, Empty
+# from Gripper.Gripper import Gripper
+# from UR3Lin.UR3Lin import UR3Lin
+from myUtils import eng_unit
 
 
 class RobotController:
     """Controls robot, manages simulation and ROS transmissions"""
+
     # todo: Separate out a RosRobot class
 
-    def __init__(self, path_json, env_context, transform=None, bake=None, robot=None, gripper=None):
-        if type(bake) != str and bake is not None:
-            raise ValueError(f"Bake filename is not a valid type: {type(bake)},  {bake}")
+    def __init__(self, robot, command_queue, response_queue, transform=None):
+        self.end_effector_pos = robot.q
 
-        self.bake_filename = bake
-        self.bake_data = []
-        self.playbake_data = None
-        self.has_played = 0
-
-        self.path_json_file = path_json
-
-        self.path = PathPlan(json_data=open(self.path_json_file))
-        self.end_effector_pos = self.path.start_pos
+        self.commands = command_queue
+        self.response = response_queue
 
         # Perform sanity checks on the position
         if lin.norm(np.array([a[3] for a in self.end_effector_pos.A[:3]])) < 50e-3:
             # Robot end effector is likely too close to the origin
             raise ValueError("Robot start position is too close to the origin")
 
-        self.instruction_index = 0
         self.current_trajectory = None
 
         self.base_offset = transform if transform is not None else SE3()
 
-        self.arm = UR3Lin() if robot is None else robot()
+        self.arm = robot  # UR3Lin() if robot is None else robot()
 
-        self.gripper = Gripper(env_context) if gripper is None else gripper(env_context)
+        self.gripper = self.arm.gripper
 
         self.gripper_base_offset = self.gripper.base_offset
         self.tool_offset = self.gripper.tool_offset
@@ -75,7 +46,14 @@ class RobotController:
         self.step_count = 5
         self.interp_count = 4
 
-        self.swift_env = env_context
+        self.swift_env = None
+
+        self.current_request = None
+        self.has_next_instruction = False
+
+    def add_to_env(self, env):
+        self.swift_env = env
+        self.gripper.add_to_env(self.swift_env)
         self.arm.add_to_env(self.swift_env)
 
     # -------- Trajectory Processes --------
@@ -126,41 +104,55 @@ class RobotController:
 
     def get_next_trajectory(self):
         """Get the next trajectory from path"""
-        if not self.path.path_points:
-            raise ValueError("No points available in the path")
+        # raise NotImplementedError() # This code should read the queue
+        try:
+            self.has_next_instruction = True
+            self.current_request = self.commands.get(block=False)
+            if self.current_request["command"] == "GO_TO_POSE_REQUEST":
+                end = self.current_request["data"]["point"]
+                self.current_trajectory["joints"] = self.get_trajectory(end, rapid=self.current_request["data"][
+                    "movement_mode"])
+                # print(f"Moving to transform:\n{end}")
 
-        print(f"Running path: {self.instruction_index + 1}/{len(self.path.path_points)}, "
-              f"{round((self.instruction_index + 1)/len(self.path.path_points) * 100):>3}%")
+            elif self.current_request["command"] == "GRAB_REQUEST":
+                self.current_trajectory['gripper'] = np.linspace(self.gripper.open, self.gripper.close,
+                                                                 self.step_count)[:].tolist()
+                self.current_trajectory['joints'] = [[*self.arm.q.tolist()] for _ in self.current_trajectory['gripper']]
+                # print("Picking up")
 
-        self.current_trajectory = {'joints': None}
-        if self.instruction_index + 1 == len(self.path.path_points):
-            self.current_trajectory['joints'] = []  # Empty iterator to force end of program
-            return False  # False if end of path
+            elif self.current_request["command"] == "RELEASE_REQUEST":
+                self.current_trajectory['gripper'] = np.linspace(self.gripper.close, self.gripper.open,
+                                                                 self.step_count)[:].tolist()
+                self.current_trajectory['joints'] = [[*self.arm.q.tolist()] for _ in self.current_trajectory['gripper']]
+                # print("Dropping")
+            else:
+                self.has_next_instruction = False
+                self.response.put({
+                    "id": self.current_request["id"],
+                    "command": "UNRECOGNISED_COMMAND",
+                    "timestamp": 0,
+                    "successful": False
+                })
+        except Empty:
+            self.has_next_instruction = False
 
-        next_instr = self.path.path_points[self.instruction_index]
-        self.instruction_index += 1
-        self.current_trajectory = {**self.current_trajectory, **next_instr}
-        if next_instr['action'] in ['m', 'rpd']:  # Instruction is a movement command
-            end = next_instr['point']
-            self.current_trajectory['joints'] = self.get_trajectory(end, rapid=next_instr['action'] == 'rpd')
-            print(f"Moving to transform:\n{end}")
-            return True
+        # self.current_trajectory = {**self.current_trajectory, **next_instr}
 
-        if next_instr['action'] == 'grb':
-            self.current_trajectory['grip'] = next_instr['id']
-            self.current_trajectory['gripper'] = np.linspace(self.gripper.open, self.gripper.close,
-                                                             self.step_count)[:].tolist()
-            print("Picking up")
+    def finish_movement(self):
+        """Post a finished-movement message"""
+        response_names = {
+            "GO_TO_POSE_REQUEST": "GO_TO_POSE_RESPONSE",
+            "GRAB_REQUEST": "GRAB_RESPONSE",
+            "RELEASE_REQUEST": "RELEASE_RESPONSE",
+        }
 
-        elif next_instr['action'] == 'rel':
-            self.current_trajectory['release'] = next_instr['id']
-            self.current_trajectory['gripper'] = np.linspace(self.gripper.close, self.gripper.open,
-                                                             self.step_count)[:].tolist()
-            print("Dropping")
-
-        # Arm shouldn't move while gripper is moving. Although it absolutely can if needed
-        self.current_trajectory['joints'] = [[*self.arm.q.tolist()] for _ in self.current_trajectory['gripper']]
-        return True
+        self.has_next_instruction = False
+        self.response.put({
+            "id": self.current_request["id"],
+            "command": response_names.get(self.current_request["command"], "UNKNOWN_RESPONSE"),
+            "timestamp": 0,
+            "successful": True
+        })
 
     # ------------ Joint and IK ------------
     def _perform_ik_search(self, t, q0=None):
@@ -176,6 +168,9 @@ class RobotController:
 
     def _interpolate_joints(self, j_start, j_end):
         return [j_start + fraction * (j_end - j_start) for fraction in np.linspace(0, 1, self.interp_count)]
+
+    def _rmrf_interpolation(self):
+        raise NotImplementedError()
 
     def get_end_effector_transform(self):
         return self.arm.fkine(self.arm.q)
@@ -241,14 +236,14 @@ class RobotController:
         """Simulate next action in env"""
         # If no trajectory/end of trajectory, get the next trajectory
         if self.current_trajectory is None or not len(self.current_trajectory['joints']):
-            if not self.get_next_trajectory():
-                self._save_bake()
-                return {'stop': True}  # End the simulation
+            if self.current_trajectory is not None:
+                self.finish_movement()
+            self.get_next_trajectory()
+        if self.has_next_instruction:
+            action = self._process_current_step()
+        # return action
 
-        action = self._process_current_step()
-        return action
-
-    def _process_current_step(self, do_bake=True):
+    def _process_current_step(self):
         """Process and return the current simulation step"""
         current_step = self.current_trajectory['joints'].pop(0)
         self.gripper.base = self.arm.fkine(self.arm.q) * self.gripper_base_offset
@@ -264,43 +259,4 @@ class RobotController:
             'joints': current_step,
             **self.current_trajectory
         }
-        if do_bake:
-            self._record_bake(action, current_step, gripper_val)
         return action
-    
-    # ---------- Bake management -----------
-    def _record_bake(self, action, current_step, gripper_val):
-        """Add a bake record"""
-        self.bake_data.append({
-            'stop': action['stop'],
-            'action': action['action'],
-            'joints': [float(c) for c in current_step],
-            'gripper': [float(g) for g in gripper_val] if gripper_val is not None else None
-        })
-        print(action)
-
-    def _save_bake(self):
-        if self.bake_filename is None:
-            return
-        safe_write_to_file('bakes\\' + self.bake_filename, json.dumps(self.bake_data), new_file=True, extension='bake')
-
-    def _read_bake(self, bakefile):
-        if bakefile[-3:] == 'bag':
-            return read_rosbag(bakefile)[:]
-        self.bake_data = json.load(open(bakefile))
-        return self.bake_data[:]  # Slice to copy data, else gets bound to the file unintentionally
-
-    def playback_bake(self, bakefile):
-        """Playback recorded robot actions from file"""
-        if self.playbake_data is None:
-            self.playbake_data = self._read_bake(bakefile)
-        if self.has_played == len(self.playbake_data):
-            return False, None
-        entry = self.playbake_data[self.has_played]
-        self.has_played += 1
-        self.current_trajectory = {'stop': False, **entry, 'joints': [entry['joints']]}
-
-        self.arm.q = entry['joints'][:]
-        self.gripper.base = self.arm.fkine(self.arm.q) * self.gripper_base_offset
-        self.gripper.setq(self.current_trajectory['gripper']) if 'gripper' in self.current_trajectory else None
-        return True, self.current_trajectory
