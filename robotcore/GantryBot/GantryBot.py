@@ -21,15 +21,15 @@ class GantryBot(DHRobot3D):
 
         # A joint config and the 3D object transforms to match that config
         qtest = [0, 0, 0]
-        qtest_transforms = [spb.transl(0, 0, 0),
-                            spb.trotx(-pi / 2),
-                            spb.transl(0, 0, 0) @ spb.rpy2tr(0, 0, 0, order='xyz'),
-                            spb.transl(0, 0, 0) @ spb.rpy2tr(0, 0, 0, order='xyz')]
+        qtest_transforms = [spb.transl(0, 0.3, 0) @ spb.rpy2tr(0, 0, -pi/2, order = 'xyz'),
+                            spb.transl(0.325, 0.09, 0) @ spb.rpy2tr(0, 0, 0, order = 'xyz'),
+                            spb.transl(-0.2, 0, -0.53) @ spb.rpy2tr(0, 0, 0, order='xyz'),
+                            spb.transl(-0.2, 0, -1.04) @ spb.rpy2tr(0, 0, 0, order='xyz')]
 
         current_path = os.path.abspath(os.path.dirname(__file__))
         super().__init__(links, link_names, name='GantryBot', link3d_dir=current_path, qtest=qtest,
                          qtest_transforms=qtest_transforms)
-        self.base = self.base * SE3.Rx(pi / 2) * SE3.Ry(pi / 2)
+        self.base = self.base * SE3.Rx(pi/2) * SE3.Ry(pi/2)
         self.q = qtest
 
         self.q = [0.5, 0.5, 0.5]  # Known safe start values
@@ -42,7 +42,7 @@ class GantryBot(DHRobot3D):
         """
         Create robot's standard DH model
         """
-        links = [rtb.PrismaticDH(theta=1, a=0, alpha=pi / 2, qlim=[1, 0]),
-                 rtb.PrismaticDH(theta = 1, a = 0, alpha = pi/2, qlim = [1, 0]),
+        links = [rtb.PrismaticDH(theta=1, a=0, alpha=0, qlim=[1, 0]),
+                 rtb.PrismaticDH(theta = 0, a = 1, alpha = 0, qlim = [1, 0]),
                  rtb.PrismaticDH(theta = 1, a = 0, alpha = pi/2, qlim = [1, 0])]  # Prismatic Link
         return links
