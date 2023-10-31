@@ -36,7 +36,7 @@ class GantryBot(DHRobot3D):
         self.q = [0, 0, 0]  # Known safe start values
         self.links[0].qlim = [0, 0.9]
         self.links[1].qlim = [-0.4, 0.4]
-        self.links[2].qlim = [-0.2, 0.1]
+        self.links[2].qlim = [-0.15, 0.1]
 
     @staticmethod
     def _create_DH():
