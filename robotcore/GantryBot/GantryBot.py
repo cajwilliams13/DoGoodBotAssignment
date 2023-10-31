@@ -1,5 +1,6 @@
 import os
 from math import pi
+import swift
 
 import roboticstoolbox as rtb
 import spatialmath.base as spb
@@ -23,8 +24,8 @@ class GantryBot(DHRobot3D):
         qtest = [0, 0, 0]
         qtest_transforms = [spb.transl(0, 0.3, 0) @ spb.rpy2tr(0, 0, -pi/2, order = 'xyz'),
                             spb.transl(0.325, 0.09, 0) @ spb.rpy2tr(0, 0, 0, order = 'xyz'),
-                            spb.transl(-0.2, 0, -0.53) @ spb.rpy2tr(0, 0, 0, order='xyz'),
-                            spb.transl(-0.2, 0, -1.04) @ spb.rpy2tr(0, 0, 0, order='xyz')]
+                            spb.transl(-0.17, 0.1, -0.023) @ spb.rpy2tr(0, 0, 0, order='xyz'),
+                            spb.transl(-0.17, 0, -0.04) @ spb.rpy2tr(0, 0, 0, order='xyz')]
 
         current_path = os.path.abspath(os.path.dirname(__file__))
         super().__init__(links, link_names, name='GantryBot', link3d_dir=current_path, qtest=qtest,
@@ -32,17 +33,35 @@ class GantryBot(DHRobot3D):
         self.base = self.base * SE3.Rx(pi/2) * SE3.Ry(pi/2)
         self.q = qtest
 
-        self.q = [0.5, 0.5, 0.5]  # Known safe start values
-        self.links[0].qlim = [1, 0]
-        self.links[1].qlim = [1, 0]
-        self.links[2].qlim = [1, 0]
+        self.q = [0, 0, 0]  # Known safe start values
+        self.links[0].qlim = [0, 0.9]
+        self.links[1].qlim = [-0.4, 0.4]
+        self.links[2].qlim = [-0.2, 0.1]
 
     @staticmethod
     def _create_DH():
         """
         Create robot's standard DH model
         """
-        links = [rtb.PrismaticDH(theta=1, a=0, alpha=0, qlim=[1, 0]),
-                 rtb.PrismaticDH(theta = 0, a = 1, alpha = 0, qlim = [1, 0]),
-                 rtb.PrismaticDH(theta = 1, a = 0, alpha = pi/2, qlim = [1, 0])]  # Prismatic Link
+        links = [rtb.PrismaticDH(theta=pi/2, a=0, alpha=pi/2, qlim=[0, 0.9]),
+                 rtb.PrismaticDH(theta =pi/2, a = 0, alpha = pi/2, qlim = [-0.4, 0.4]),
+                 rtb.PrismaticDH(theta = 0, a = 0, alpha = 0, qlim = [-0.15, 0.1])]  # Prismatic Link
         return links
+    
+    def test(self):
+        """
+        Test the class by adding 3d objects into a new Swift window and do a simple movement
+        """
+        env = swift.Swift()
+        env.launch(realtime= True)
+        self.q = self._qtest        
+        self.add_to_env(env)
+        q_goal = [0.9, -0.4, -0.15]
+        qtraj = rtb.jtraj(self.q, q_goal, 50).q
+        # fig = self.plot(self.q, limits= [-1,1,-1,1,-1,1])
+        # fig._add_teach_panel(self, self.q)
+        for q in qtraj:
+            self.q = q
+            env.step(0.02)
+            # fig.step(0.01)
+        # fig.hold()

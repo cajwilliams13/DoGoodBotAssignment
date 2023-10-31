@@ -8,5 +8,7 @@ if __name__ == '__main__':
     env = swift.Swift()
     env.launch(realtime = True)
     GanBot = GantryBot()
+    #GanBot.teach(GanBot.q)
+    GanBot.test()
     GanBot.add_to_env(env)
     input('press enter to close')
