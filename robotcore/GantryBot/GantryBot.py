@@ -14,10 +14,10 @@ class GantryBot(DHRobot3D):
         links = self._create_DH()
 
         # Names of the robot link files in the directory
-        link_names = dict(link0='gantry_base',  # color option only takes effect for stl file
-                          link1='Gantry_Slider1',
-                          link2='Gantry_Slider2',
-                          link3='Gantry_Slider3')
+        link_names = dict(link0='gantry_base', color0 = (0.2, 0.2, 0.2, 1),  # color option only takes effect for stl file
+                          link1='Gantry_Slider1', color1 = (0.2, 0.2, 0.2, 1),
+                          link2='Gantry_Slider2', color2 = (0.2, 0.2, 0.2, 1),
+                          link3='Gantry_Slider3', color3 = (0.2, 0.2, 0.2, 1))
 
         # A joint config and the 3D object transforms to match that config
         qtest = [0, 0, 0]
@@ -42,7 +42,7 @@ class GantryBot(DHRobot3D):
         """
         Create robot's standard DH model
         """
-        links = [rtb.PrismaticDH(theta=0, a=0, alpha=pi / 2, qlim=[1, 0]),
-                 rtb.PrismaticDH(theta = 0, a = 0, alpha = pi/2, qlim = [1, 0]),
-                 rtb.PrismaticDH(theta = 0, a = 0, alpha = pi/2, qlim = [1, 0])]  # Prismatic Link
+        links = [rtb.PrismaticDH(theta=1, a=0, alpha=pi / 2, qlim=[1, 0]),
+                 rtb.PrismaticDH(theta = 1, a = 0, alpha = pi/2, qlim = [1, 0]),
+                 rtb.PrismaticDH(theta = 1, a = 0, alpha = pi/2, qlim = [1, 0])]  # Prismatic Link
         return links
