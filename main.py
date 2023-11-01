@@ -5,6 +5,7 @@ from robotcore.Gripper.Gripper import Gripper
 from spatialmath import SE3
 from ir_support import UR5
 from math import pi
+import spatialgeometry as geometry
 
 
 def CreateEnvironment(env, transform=None):
@@ -13,8 +14,11 @@ def CreateEnvironment(env, transform=None):
     
     #Objects
     #Table, Safety Stuff, Cubby, etc
-
-
+    Table = geometry.Mesh('Brick.stl', pose = SE3(0,0,0))
+    Extinguisher = geometry.Mesh('Brick.stl', pose = SE3(0,0,0))
+    StorageUnit = geometry.Mesh('Brick.stl', pose = SE3(0,0,0))
+    Printer = geometry.Mesh('Brick.stl', pose = SE3(0,0,0))
+    EStop = geometry.Mesh('Brick.stl', pose = SE3(0,0,0))
     #Robots
     GanBot = GantryBot()
     UR5Bot = UR5()
