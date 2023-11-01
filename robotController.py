@@ -10,6 +10,7 @@ import roboticstoolbox as rtb
 import roslibpy
 import spatialmath
 
+from ir_support import UR5
 from pathplanner import PathPlan
 from props import Prop
 from rosbags.highlevel import AnyReader  # For rosbag playback
@@ -25,7 +26,7 @@ class RobotController:
     """Controls robot, manages simulation and ROS transmissions"""
     # todo: Separate out a RosRobot class
 
-    def __init__(self, move_list, swift_env=None, ros_client=None, transform=None, bake=None, robot=None):
+    def __init__(self, move_list, swift_env=None, ros_client=None, transform=None, bake=None, robot=None, gripper=None):
         assert type(bake) == str or bake is None
 
         self.bake_filename = bake
@@ -47,13 +48,21 @@ class RobotController:
             #raise ValueError("Robot start position is too close to the origin")
 
         self.base_offset = transform if transform is not None else SE3()
-        self.gripper_base_offset = SE3(-4e-3, -2e-3, 81e-3)
-        self.tool_offset = SE3(0, 0, 210e-3)
-        self.inv_tool_offset = SE3(np.linalg.inv(self.tool_offset.A))
 
         self.arm = UR3Lin() if robot is None else robot()
+        self.gripper = Gripper() if gripper is None else gripper()
 
-        self.gripper = Gripper(swift_env)
+        self.debug = False
+        if robot == UR5:
+            self.gripper_base_offset = SE3(-4e-3, -2e-3, 81e-3)
+            self.tool_offset = SE3(0, 0, 210e-3)
+        else:
+            self.gripper_base_offset = self.arm.gripper_base_offset
+            self.tool_offset = self.arm.tool_offset
+            #self.debug = True
+
+        self.inv_tool_offset = SE3(np.linalg.inv(self.tool_offset.A))
+
         self.gripper.add_to_env(swift_env)
 
         if len(self.arm.q) == 7:
@@ -71,6 +80,7 @@ class RobotController:
 
 
             self.arm.links[1].qlim = [-pi, 0]
+            self.arm.links[4].qlim = [0, pi]
             self.arm.links[5].qlim = [0, pi]
             self.gripper_base_offset = SE3()
             self.tool_offset = SE3(0, 0, 210e-3 - 81e-3)
@@ -227,6 +237,7 @@ class RobotController:
     def get_next_trajectory(self):
         """Get the next trajectory from path"""
         if not self.path.path_points:
+            return False
             raise ValueError("No points available in the path")
 
         #print(f"Running path: {self.instruction_index + 1}/{len(self.path.path_points)}, "
@@ -420,7 +431,9 @@ class RobotController:
         if 'gripper' in self.current_trajectory:
             gripper_val = self.current_trajectory['gripper'].pop(0)
         self.gripper.setq(gripper_val)  # Must run to update base position
-
+        if self.debug:
+            #print(self.gripper.base)
+            Prop('objects\\dot', self.swift_env, transform=self.gripper.base)
         self.arm.q = current_step[:]
         action = {
             'stop': False,
@@ -467,3 +480,10 @@ class RobotController:
         self.gripper.base = self.arm.fkine(self.arm.q) * self.gripper_base_offset
         self.gripper.setq(self.current_trajectory['gripper']) if 'gripper' in self.current_trajectory else None
         return True, self.current_trajectory
+
+    def tweak(self, joint, dist):
+        p = PathPlan(self.arm.q)
+        q = self.arm.q
+        q[joint] += dist / 180 * pi
+        p.add_path(self.arm.fkine(q), "rpd")
+        self.run(p)

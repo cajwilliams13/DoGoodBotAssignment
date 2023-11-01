@@ -1,5 +1,6 @@
 import json
 import time
+from threading import Thread
 
 import swift
 from math import pi
@@ -7,9 +8,12 @@ from math import pi
 from ir_support import UR5
 from spatialmath import SE3
 
+from Sub1.Bricklayer.GantryBot.GantryBot import GantryBot
+from Sub1.Bricklayer.Gripper.Gripper import Gripper
+from Sub1.Bricklayer.Gripper2.Gripper2 import Gripper2
+from Sub1.Bricklayer.ui_v1 import run_gui_in_thread
 from robotController import RobotController
-from pathplanner import produce_path_plan, PathPlan
-from pathplanner import read_scene
+from pathplanner import read_scene, PathPlan
 from props import Prop
 
 
@@ -70,12 +74,12 @@ def create_sim_env(env, master_transform=None):
 
 def get_reposition_table():
     origin = SE3(-0.5, 0, 0.5)
-    start_pos = SE3(-0.56, -0.4, 0.24)
+    start_pos = SE3(-0.46, -0.4, 0.24)
     rot_correct = SE3.Ry(-90, unit="deg") * SE3.Rz(-90, unit="deg")
     move_out_offset = SE3(0.3, 0, 0)
     move_in_offset = SE3(-0.3, 0, 0)
-    targets = [SE3(-0.56, -0.15, 0.24), SE3(-0.56, 0.15, 0.24), SE3(-0.56, 0.4, 0.24),
-               SE3(-0.56, -0.4, 0.5), SE3(-0.56, -0.15, 0.5), SE3(-0.56, 0.15, 0.5), SE3(-0.56, 0.4, 0.5)]
+    targets = [SE3(-0.56, -0.15, 0.24), SE3(-0.56, 0.15, 0.24), SE3(-0.46, 0.4, 0.24),
+               SE3(-0.46, -0.4, 0.5), SE3(-0.56, -0.15, 0.5), SE3(-0.56, 0.15, 0.5), SE3(-0.46, 0.4, 0.5)]
 
     paths = []
     for t in targets:
@@ -99,12 +103,10 @@ def get_reposition_table():
         path.add_path(action="rel", obj_id=0)
         pos *= move_out_offset
         path.add_path(pos * rot_correct, "m")
-        pos = origin
-        path.add_path(pos * rot_correct, "rpd")
 
         paths.append(path)
 
-    return paths, [None for _ in range(7)]
+    return paths
 
 
 def get_load_path():
@@ -173,7 +175,6 @@ def run_robot_prog(robot, env, program, items, tool_offset, item_id):
 
 def full_scene_sim(scene_file='altscene.json'):
     # produce_path_plan(scene_file, show_matching=False, show_path=False, save='altplan.json')  # Optionally update path plan before starting
-
     env = swift.Swift()
     env.launch(realtime=True)
 
@@ -185,14 +186,21 @@ def full_scene_sim(scene_file='altscene.json'):
 
     robot_1_base = scene_offset * SE3(0, 0, 0.65)
 
-    pos_table, fill_table = get_reposition_table()
+    pos_table = get_reposition_table()
     load_path = get_load_path()
 
+    plates = ["Absent" for _ in range(8)]
+
     null_path = PathPlan(SE3(-0.5, 0, 0.5))
-    traj_planner = RobotController(load_path, robot=UR5, swift_env=env, transform=robot_1_base)
-    traj_planner_2 = RobotController(null_path, robot=UR5, swift_env=env, transform=scene_offset * SE3(0, 0, 0.65))
+    traj_planner = RobotController(null_path, robot=UR5, swift_env=env, transform=robot_1_base)
+    traj_planner_2 = RobotController(null_path, robot=GantryBot, swift_env=env,
+                                     transform=scene_offset * SE3(-1, 0, 3) * SE3.Ry(90, unit="deg") *
+                                               SE3.Rx(180, unit="deg"), gripper=Gripper2)
+    traj_planner_2 = RobotController(null_path, robot=UR5, swift_env=env,
+                                     transform=robot_1_base * SE3(-0.1, 0, 0))
     # Tool offset needed for brick manipulation
     tool_offset = traj_planner.tool_offset
+    tool_offset2 = traj_planner_2.tool_offset
 
     # Place bricks and scene
     items = [Prop('objects\\plate2', env, position, transform=far_far_away, color=(5, 5, 5)) for
@@ -203,14 +211,72 @@ def full_scene_sim(scene_file='altscene.json'):
 
     #time.sleep(10)
 
+    gui_thread = Thread(target=run_gui_in_thread,  kwargs={"r1":traj_planner, "r2": traj_planner_2, "plates": plates})
+    gui_thread.start()
+
     item_id = 0
-    for item in pos_table:
+    #run_robot_prog(traj_planner, env, null_path, items, tool_offset, item_id)
+    #run_robot_prog(traj_planner_2, env, null_path, items, tool_offset2, item_id)
+    #item_id += 1
 
-        run_robot_prog(traj_planner, env, load_path, items, tool_offset, item_id)
-        run_robot_prog(traj_planner_2, env, item, items, tool_offset, item_id)
-        item_id += 1
+    held_id = None
+    held_id_2 = None
+    plate_in_move = False
+    p1_stop = False
+    #traj_planner.run(program)
+    #traj_planner_2.run(program)
+    while True:
+        if not plate_in_move and not any([p == "Moving" for p in plates]):
+            for i, p in enumerate(plates):
+                if p == "Waiting":
+                    plate_id = i
+                    plate_in_move = True
+                    traj_planner.simulation_step()
+                    traj_planner.run(load_path)
+                    items[i].update_transform(printer_spawn)
+                    p1_stop = False
+            print(plates)
 
-    # traj_planner.prove_move(SE3(-0.6, 0, 0.3) * SE3.Rx(180, unit='deg'))  # Rx to flip the end effector facing down
+        action_1 = traj_planner.simulation_step()
+        action_2 = traj_planner_2.simulation_step()
+
+        if 'grip' in action_1:
+            held_id = plate_id
+
+        if held_id is not None:  # Move brick if being held
+            end_effector_transform = traj_planner.get_end_effector_transform()
+            items[held_id].update_transform(
+                end_effector_transform * tool_offset * SE3(0, 0, 0) * SE3.Rx(-90, unit="deg"))
+
+        if 'release' in action_1:
+            held_id = None
+
+        # ------------------------------------------------------------------------------------------
+
+        if 'grip' in action_2:
+            held_id_2 = plate_id
+
+        if held_id_2 is not None:  # Move brick if being held
+            end_effector_transform = traj_planner_2.get_end_effector_transform()
+            items[held_id_2].update_transform(
+                end_effector_transform * tool_offset2 * SE3(0, 0, 0) * SE3.Rx(-90, unit="deg"))
+
+        if 'release' in action_2:
+            held_id_2 = None
+
+        env.step(0.01)
+        # env.step(0)
+
+        if action_1['stop'] and plate_in_move:
+            traj_planner_2.run(pos_table[plate_id])
+            plates[plate_id] = "Moving"
+            p1_stop = True
+
+        if action_2['stop'] and p1_stop:
+            plate_in_move = False
+            p1_stop = False
+            plates[plate_id] = "Stowed"
+            #break
 
     env.hold()
 
