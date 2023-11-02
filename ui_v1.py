@@ -3,20 +3,17 @@ from tkinter import ttk, messagebox
 from threading import Thread
 
 class RobotControlGUI(tk.Tk):
-    def __init__(self, r1=None, r2=None, plates=None):
+    def __init__(self, r1=None, r2=None, plates=None, robot_can_move=None):
         super().__init__()
 
         self.robot_1 = r1
         self.robot_2 = r2
         self.plates = plates
+        self.robots_allowed_to_run = robot_can_move
 
         self.title("Robot Control Interface")
         self.estop_active = True
-
-        # Status message
-        self.status_var = tk.StringVar(value="NONE")
-        ttk.Label(self, textvariable=self.status_var).grid(row=3, column=0, columnspan=2, pady=10)
-
+        
         # Create frame for Production cell control
         prod_cell_frame = ttk.LabelFrame(self, text="Production Cell Control")
         prod_cell_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
@@ -30,9 +27,9 @@ class RobotControlGUI(tk.Tk):
         self.start_btn.grid(row=0, column=2, padx=5, pady=5)
 
         # Toggle Mode Button
-        self.mode = tk.StringVar(value="Mode: Joint")
-        self.toggle_mode_btn = ttk.Button(prod_cell_frame, textvariable=self.mode, command=self.toggle_mode)
-        self.toggle_mode_btn.grid(row=0, column=0, padx=5, pady=5)
+        #self.mode = tk.StringVar(value="Mode: Joint")
+        #self.toggle_mode_btn = ttk.Button(prod_cell_frame, textvariable=self.mode, command=self.toggle_mode)
+        #self.toggle_mode_btn.grid(row=0, column=0, padx=5, pady=5)
 
         self.create_robot_interface()
 
@@ -45,12 +42,14 @@ class RobotControlGUI(tk.Tk):
         self.axis_vals = {}
         self.rot_vals = {}
 
+        #self.robots_allowed_to_run = False
+
     def update_status(self, new_status):
         """Updates the status message with the given text."""
         self.status_var.set(new_status)
 
     def create_robot_interface(self):
-        if "Joint" in self.mode.get():
+        if True: #"Joint" in self.mode.get():
             self.create_joint_controls("Robot Joint Control 1", 1, 6, 1, 0)
             self.create_joint_controls("Robot Joint Control 2", 2, 3, 2, 0)
         else:
@@ -71,10 +70,8 @@ class RobotControlGUI(tk.Tk):
             ttk.Button(joint_frame, text="+", command=lambda i=i: self.move_joint(robot_num, i, "+")).grid(row=i, column=2, padx=5, pady=5)
             ttk.Button(joint_frame, text="-", command=lambda i=i: self.move_joint(robot_num, i, "-")).grid(row=i, column=3, padx=5, pady=5)
 
-        ttk.Button(joint_frame, text="Reset", command=self.reset).grid(row=joints, column=0, padx=5, pady=5)
-        ttk.Button(joint_frame, text="Toggle gripper", command=self.toggle_gripper).grid(row=joints, column=1, columnspan=3, padx=5, pady=5)
-
     def create_xyz_controls(self, label, robot_num, row, col):
+        raise NotImplementedError
         frame = ttk.LabelFrame(self, text=label)
         frame.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
 
@@ -128,20 +125,11 @@ class RobotControlGUI(tk.Tk):
         else:
             r.tweak(joint, -5)
 
-    def reset(self, joint_values_list):
-        # Dummy code to reset the robot here
-        for value in joint_values_list:
-            value.set("0")
-
-    def toggle_gripper(self, robot_num):
-        # Dummy code to toggle gripper here
-        print("Toggling gripper")
-
     def start(self):
         if self.estop_active:
             messagebox.showerror("Error", "Please release the E-STOP first!")
         else:
-            print("Starting...")
+            self.robots_allowed_to_run[0] = True
 
     def toggle_mode(self):
         # Remove previous interface
@@ -186,6 +174,7 @@ class RobotControlGUI(tk.Tk):
                     for widget in child.winfo_children():
                         widget.configure(state=tk.NORMAL)
         else:
+            self.robots_allowed_to_run[0] = False
             self.estop_active = True
             self.estop_btn.config(text="Release E-STOP")
             self.disable_controls()
@@ -200,7 +189,6 @@ class RobotControlGUI(tk.Tk):
                                                                                                   padx=5, pady=5)
             ttk.Button(printer_frame, text="Remove", command=lambda i=i: self.remove_plate(i)).grid(row=i, column=2,
                                                                                                     padx=5, pady=5)
-            ttk.Label(printer_frame, textvariable=self.plate_status_vars[i]).grid(row=i, column=3, padx=5, pady=5)
 
     def spawn_plate(self, plate_id):
         print(f"Spawn plate {plate_id + 1}")  # replace with the actual function

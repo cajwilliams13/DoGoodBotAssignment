@@ -16,19 +16,12 @@ from robotController import RobotController
 from pathplanner import read_scene, PathPlan
 from props import Prop
 
-
-# Note: PEP8 recommends snake_case as opposed to the CamelCase recommended in the code standard for most variable names.
-# Deferring to PEP8 for naming
-
-
-# Set up second ur5 (temp)
-# Prove simultaneous control
-#   Pick and place script
-#   Reload script
-#   8 different movement scripts, 1 for each relocation
-# Seperate playback and robot controller
-# Migrate ui
-# Integrate ui
+# Estop should lockout robots (make a check for esttop inn sim step)
+# Arm control from ui -> Override joint values
+# Fake blocks in the cubbies
+# remove reset button
+# Printer plate spawn issue
+# Arm uses bake to run
 
 def create_sim_env(env, master_transform=None):
     """
@@ -73,13 +66,16 @@ def create_sim_env(env, master_transform=None):
 
 
 def get_reposition_table():
-    origin = SE3(-0.5, 0, 0.5)
-    start_pos = SE3(-0.46, -0.4, 0.24)
+    correction = SE3(0.4, 0, 0.24)
+    origin = SE3(0.1, 0, 0) * correction
+    start_pos = SE3(0, 0.4, 0) * correction
     rot_correct = SE3.Ry(-90, unit="deg") * SE3.Rz(-90, unit="deg")
-    move_out_offset = SE3(0.3, 0, 0)
-    move_in_offset = SE3(-0.3, 0, 0)
-    targets = [SE3(-0.56, -0.15, 0.24), SE3(-0.56, 0.15, 0.24), SE3(-0.46, 0.4, 0.24),
-               SE3(-0.46, -0.4, 0.5), SE3(-0.56, -0.15, 0.5), SE3(-0.56, 0.15, 0.5), SE3(-0.46, 0.4, 0.5)]
+    move_out_offset = SE3(-0.2, 0, 0)
+    move_in_offset = SE3(0.1, 0, 0)
+    targets = [SE3(0, 0.1, 0), SE3(0, -0.1, 0), SE3(0, -0.4, 0),
+               SE3(0, 0.4, 0.26), SE3(0, 0.1, 0.26), SE3(0, -0.1, 0.26), SE3(0, -0.4, 0.26)]
+
+    targets = [t * correction for t in targets]
 
     paths = []
     for t in targets:
@@ -87,9 +83,9 @@ def get_reposition_table():
         pos = SE3()
 
         pos *= origin
-        path.add_path(pos * rot_correct, "rpd")
+        path.add_path(pos * rot_correct, "m")
         pos = start_pos
-        path.add_path(pos * rot_correct, "rpd")
+        path.add_path(pos * rot_correct, "m")
         pos *= move_in_offset
         path.add_path(pos * rot_correct, "m")
         path.add_path(action="grb", obj_id=0)
@@ -97,11 +93,13 @@ def get_reposition_table():
         path.add_path(pos * rot_correct, "m")
 
         pos = t
-        path.add_path(pos * rot_correct, "rpd")
+        path.add_path(pos * rot_correct, "m")
         pos *= move_in_offset
         path.add_path(pos * rot_correct, "m")
         path.add_path(action="rel", obj_id=0)
         pos *= move_out_offset
+        path.add_path(pos * rot_correct, "m")
+        pos = origin
         path.add_path(pos * rot_correct, "m")
 
         paths.append(path)
@@ -110,7 +108,7 @@ def get_reposition_table():
 
 
 def get_load_path():
-    origin = SE3(-0.5, 0, 0.5)
+    origin = SE3(0, -0.5, 0.5) * SE3.Rz(pi/2)
     start_pos = SE3(0, -0.52, 0.1)
     end_pos = SE3(-0.56, -0.4, 0.24)
     rot_start = SE3.Ry(90, unit="deg") * SE3.Rx(90, unit="deg") * SE3.Rz(90, unit="deg")
@@ -139,38 +137,9 @@ def get_load_path():
     path.add_path(pos * rot_end, "m")
     pos = origin
     path.add_path(pos * rot_end, "rpd")
+    path.add_path(pos * rot_end, "rpd")
 
     return path
-
-
-def run_robot_prog(robot, env, program, items, tool_offset, item_id):
-    held_id = None
-    robot.run(program)
-    while True:
-        running = True
-        # running, action = traj_planner.playback_bake('bakes\\true_bake')
-        action = robot.simulation_step()  # Perform simulation step
-        # traj_planner2.simulation_step()  # Perform simulation step
-
-        if not running:
-            break
-
-        if 'grip' in action:
-            held_id = item_id
-
-        if held_id is not None:  # Move brick if being held
-            end_effector_transform = robot.get_end_effector_transform()
-            items[held_id].update_transform(
-                end_effector_transform * tool_offset * SE3(0, 0, 0) * SE3.Rx(-90, unit="deg"))
-
-        if 'release' in action:
-            held_id = None
-
-        env.step(0.01)
-        # env.step(0)
-
-        if action['stop']:
-            break
 
 
 def full_scene_sim(scene_file='altscene.json'):
@@ -190,14 +159,15 @@ def full_scene_sim(scene_file='altscene.json'):
     load_path = get_load_path()
 
     plates = ["Absent" for _ in range(8)]
+    #plates[0] = "Waiting"
 
     null_path = PathPlan(SE3(-0.5, 0, 0.5))
+    pos_table.append(null_path)
     traj_planner = RobotController(null_path, robot=UR5, swift_env=env, transform=robot_1_base)
     traj_planner_2 = RobotController(null_path, robot=GantryBot, swift_env=env,
-                                     transform=scene_offset * SE3(-1, 0, 3) * SE3.Ry(90, unit="deg") *
-                                               SE3.Rx(180, unit="deg"), gripper=Gripper2)
-    traj_planner_2 = RobotController(null_path, robot=UR5, swift_env=env,
-                                     transform=robot_1_base * SE3(-0.1, 0, 0))
+                                     transform=scene_offset * SE3(-0.7, 0, 0.65) * SE3.Rz(180, unit="deg"), gripper=Gripper2)
+    #traj_planner_2 = RobotController(null_path, robot=UR5, swift_env=env,
+    #                                 transform=robot_1_base * SE3(-0.1, 0, 0))
     # Tool offset needed for brick manipulation
     tool_offset = traj_planner.tool_offset
     tool_offset2 = traj_planner_2.tool_offset
@@ -207,38 +177,38 @@ def full_scene_sim(scene_file='altscene.json'):
               position in
               read_scene(scene_file)[0]]
 
-    # Run call loop to robot controller
 
     #time.sleep(10)
 
-    gui_thread = Thread(target=run_gui_in_thread,  kwargs={"r1":traj_planner, "r2": traj_planner_2, "plates": plates})
-    gui_thread.start()
+    robot_can_move = [False]
 
-    item_id = 0
-    #run_robot_prog(traj_planner, env, null_path, items, tool_offset, item_id)
-    #run_robot_prog(traj_planner_2, env, null_path, items, tool_offset2, item_id)
-    #item_id += 1
+    gui_thread = Thread(target=run_gui_in_thread,  kwargs={"r1":traj_planner, "r2": traj_planner_2,
+                                                           "plates": plates, "robot_can_move": robot_can_move})
+    gui_thread.start()
 
     held_id = None
     held_id_2 = None
     plate_in_move = False
     p1_stop = False
-    #traj_planner.run(program)
-    #traj_planner_2.run(program)
+
     while True:
+        for i, p in enumerate(plates):
+            if p == "Absent":
+                items[i].update_transform(far_far_away)
+
         if not plate_in_move and not any([p == "Moving" for p in plates]):
             for i, p in enumerate(plates):
                 if p == "Waiting":
                     plate_id = i
                     plate_in_move = True
-                    traj_planner.simulation_step()
+                    traj_planner.simulation_step(not robot_can_move[0])
                     traj_planner.run(load_path)
                     items[i].update_transform(printer_spawn)
                     p1_stop = False
-            print(plates)
+            #print(plates)
 
-        action_1 = traj_planner.simulation_step()
-        action_2 = traj_planner_2.simulation_step()
+        action_1 = traj_planner.simulation_step(not robot_can_move[0])
+        action_2 = traj_planner_2.simulation_step(not robot_can_move[0])
 
         if 'grip' in action_1:
             held_id = plate_id

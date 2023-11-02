@@ -408,7 +408,7 @@ class RobotController:
             #print(f"  {dim}: {eng_unit(mi, 'm')} : {eng_unit(ma, 'm')}")
         #print(f"And explores a volume ~ {eng_unit((x_max - x_min) * (y_max - y_min) * (z_max - z_min), 'm3')}")
 
-    def simulation_step(self):
+    def simulation_step(self, estop):
         """Simulate next action in env"""
         if not self.has_env:
             raise EnvironmentError("Environment must be attached for simulation")
@@ -419,30 +419,38 @@ class RobotController:
                 self._save_bake()
                 return {'stop': True}  # End the simulation
 
-        action = self._process_current_step()
+        action = self._process_current_step(estop)
         return action
 
-    def _process_current_step(self, do_bake=True):
+    def _process_current_step(self, estop, do_bake=True):
         """Process and return the current simulation step"""
-        current_step = self.current_trajectory['joints'].pop(0)
-        self.gripper.base = self.arm.fkine(self.arm.q) * self.gripper_base_offset
+        if estop:
+            action = {
+                'stop': False,
+                'joints': self.arm.q,
+                **self.current_trajectory
+            }
+            return action
+        else:
+            current_step = self.current_trajectory['joints'].pop(0)
+            self.gripper.base = self.arm.fkine(self.arm.q) * self.gripper_base_offset
 
-        gripper_val = None
-        if 'gripper' in self.current_trajectory:
-            gripper_val = self.current_trajectory['gripper'].pop(0)
-        self.gripper.setq(gripper_val)  # Must run to update base position
-        if self.debug:
-            #print(self.gripper.base)
-            Prop('objects\\dot', self.swift_env, transform=self.gripper.base)
-        self.arm.q = current_step[:]
-        action = {
-            'stop': False,
-            'joints': current_step,
-            **self.current_trajectory
-        }
-        if do_bake:
-            self._record_bake(action, current_step, gripper_val)
-        return action
+            gripper_val = None
+            if 'gripper' in self.current_trajectory:
+                gripper_val = self.current_trajectory['gripper'].pop(0)
+            self.gripper.setq(gripper_val)  # Must run to update base position
+            if self.debug:
+                #print(self.gripper.base)
+                Prop('objects\\dot', self.swift_env, transform=self.gripper.base)
+            self.arm.q = current_step[:]
+            action = {
+                'stop': False,
+                'joints': current_step,
+                **self.current_trajectory
+            }
+            if do_bake:
+                self._record_bake(action, current_step, gripper_val)
+            return action
     
     # ---------- Bake management -----------
     def _record_bake(self, action, current_step, gripper_val):
