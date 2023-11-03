@@ -34,6 +34,9 @@ class EStop(geometry.Mesh):
                 if self._queue:
                     self._queue.put("E-Stop Pressed")
                 logging.debug("E-Stop Pressed")
+        elif key.keytype == Key.BUTTON and key.number == 1:
+            if self._e_stop_state == True:
+                self._e_stop_state = False
 
     def press(self):
         """Manually press the E-Stop button"""

@@ -1,21 +1,19 @@
 import json
 import time
+from math import pi
 from threading import Thread
 
 import swift
-from math import pi
-
 from ir_support import UR5
 from spatialmath import SE3
 
+from e_stop.e_stop import EStop
 from GantryBot.GantryBot import GantryBot
 from Gripper2.Gripper2 import Gripper2
-from e_stop.e_stop import EStop
-from ui_v1 import run_gui_in_thread
-from robotController import RobotController
-from pathplanner import read_scene, PathPlan
+from pathplanner import PathPlan, read_scene
 from props import Prop
-
+from robotController import RobotController
+from ui_v1 import run_gui_in_thread
 
 # Jeremy estop
 # Arm control from ui -> Override joint values
@@ -39,15 +37,15 @@ def create_sim_env(env, master_transform=None):
 
     props = [
         # Prop('objects\\Estop', env, transform=master_transform * table_offset * SE3(-1, 0.65, 2e-3), color=(100, 0, 0)),
-        #Prop('objects\\Pallet_table', env, transform=master_transform * table_offset * SE3(0, -0.25, 0),
-        #     color=(99, 71, 32)),
-        Prop('objects\\Table', env, is_stl=False, transform=master_transform * table_offset * SE3(0, -0.25, 0)),
+        Prop('objects\\Pallet_table', env, transform=master_transform * table_offset * SE3(0, -0.25, 0),
+            color=(99, 71, 32)),
+        # Prop('objects\\Pallet_table', env, is_stl=True, transform=master_transform * table_offset * SE3(0, -0.25, 0)),
         Prop('objects\\extinguisher', env, transform=master_transform * SE3(-0.7, 1.35, 0), color=(102, 15, 13)),
         Prop('objects\\store', env, transform=master_transform * SE3(0, 0, 0.45) * SE3.Rz(pi / 2) * SE3(0, 0.8, 0),
              color=(80, 60, 15)),
         Prop('objects\\printer', env, transform=master_transform * table_offset * SE3(0, -0.95, 0) * SE3.Rz(pi),
              color=(200, 100, 10)),
-        Prop('objects\\PlateHolder', env, is_stl=False, transform=master_transform * table_offset * SE3(0, -0.95, 0) * SE3.Rz(pi))
+        # Prop('objects\\PlateHolder', env, is_stl=False, transform=master_transform * table_offset * SE3(0, -0.95, 0) * SE3.Rz(pi))
     ]
 
     # Use XYZRz encoded position
@@ -203,7 +201,7 @@ def full_scene_sim(scene_file='altscene.json'):
     estop_button.add_to_env(env)
 
     while True:
-        
+        robot_can_move[0] = not estop_button.get_state()
         for i, p in enumerate(plates):
             if p == "Absent":
                 items[i].update_transform(far_far_away)
