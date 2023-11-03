@@ -15,7 +15,7 @@ from props import Prop
 from robotController import RobotController
 from ui_v1 import run_gui_in_thread
 
-# Jeremy estop
+
 # Arm control from ui -> Override joint values
 # Blocks in the cubbies
 # Printer plate spawn issue
@@ -53,8 +53,9 @@ def create_sim_env(env, master_transform=None):
                       (1.8 - 2 * gate_len, -gate_len, 0, 90),
                       (1.8, gate_len, 0, 90), (1.8 - 2 * gate_len, gate_len, 0, 90)]
 
-    gate_locations += [(*g[:2], 0.6, g[3]) for g in gate_locations]  # Add a second layer of gates
-
+    extra_gate_locations = [(*g[:2], 0.6, g[3]) for g in gate_locations]  # Add a second layer of gates
+    extra_gate_locations += [(*g[:2], 1.2, g[3]) for g in gate_locations]  # Add a third layer of gates
+    gate_locations += extra_gate_locations
     # props.append(Prop('objects\\Estop', env, color=(100, 0, 0), transform=master_transform * table_offset *
     #                                                                      SE3(1.82 - gate_len, gate_len - 0.02, 0.561)))
 
@@ -71,8 +72,8 @@ def get_reposition_table():
     rot_correct = SE3.Ry(-90, unit="deg") * SE3.Rz(-90, unit="deg")
     move_out_offset = SE3(-0.2, 0, 0)
     move_in_offset = SE3(0.1, 0, 0)
-    targets = [SE3(0, 0.1, 0), SE3(0, -0.1, 0), SE3(0, -0.4, 0),
-               SE3(0, 0.4, 0.26), SE3(0, 0.1, 0.26), SE3(0, -0.1, 0.26), SE3(0, -0.4, 0.26)]
+    targets = [SE3(-0.1, 0.1, 0), SE3(-0.1, -0.1, 0), SE3(-0.1, -0.4, 0),
+               SE3(-0.1, 0.4, 0.26), SE3(-0.1, 0.1, 0.26), SE3(-0.1, -0.1, 0.26), SE3(-0.1, -0.4, 0.26)]
 
     targets = [t * correction for t in targets]
 
@@ -94,6 +95,7 @@ def get_reposition_table():
         pos = t
         path.add_path(pos * rot_correct, "m")
         pos *= move_in_offset
+        pos *= move_in_offset
         path.add_path(pos * rot_correct, "m")
         path.add_path(action="rel", obj_id=0)
         pos *= move_out_offset
@@ -114,10 +116,11 @@ def get_load_path():
     rot_end = SE3.Ry(-90, unit="deg") * SE3.Rz(-90, unit="deg")
 
     path = PathPlan(SE3(-0.5, 0, 0.5))
-    pos = SE3()
 
-    pos *= origin
-    path.add_path(pos * rot_start, "rpd")
+    path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
+                   1.01747401e+00, 1.20284037e-06], "joint")
+    path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
+                   1.01747401e+00, 1.20284037e-06], "joint")
     pos = start_pos
     path.add_path(pos * rot_start, "rpd")
     pos *= SE3(0, -0.3, 0)
@@ -131,11 +134,12 @@ def get_load_path():
     pos *= SE3(-0.3, 0, 0)
     path.add_path(pos * rot_end, "m")
     path.add_path(action="rel", obj_id=0)
-    pos *= SE3(0.3, 0, 0)
+    pos *= SE3(0.6, 0, 0)
     path.add_path(pos * rot_end, "m")
-    pos = origin
-    path.add_path(pos * rot_end, "rpd")
-    path.add_path(pos * rot_end, "rpd")
+    path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
+                   1.01747401e+00, 1.20284037e-06], "joint")
+    path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
+                   1.01747401e+00, 1.20284037e-06], "joint")
 
     return path
 
@@ -145,7 +149,7 @@ def full_scene_sim(scene_file='altscene.json'):
     env = swift.Swift()
     env.launch(realtime=True)
 
-    scene_offset = SE3(0, 0, 0.5) * SE3.Rz(0, unit='deg')  # Master transform to move the entire robot + room setup
+    scene_offset = SE3(0, 0, 0) * SE3.Rz(0, unit='deg')  # Master transform to move the entire robot + room setup
     create_sim_env(env, scene_offset)
 
     far_far_away = SE3(1000, 0, 0)  # Very far away
@@ -157,7 +161,7 @@ def full_scene_sim(scene_file='altscene.json'):
     load_path = get_load_path()
 
     plates = ["Absent" for _ in range(8)]
-    # plates[0] = "Waiting"
+    #plates[0] = "Waiting"
 
     null_path = PathPlan(SE3(-0.5, 0, 0.5))
     pos_table.append(null_path)
@@ -200,14 +204,15 @@ def full_scene_sim(scene_file='altscene.json'):
     estop_button.add_to_env(env)
 
     while True:
-        robot_can_move[0] = not estop_button.get_state()
+        if estop_button.get_state():
+            robot_can_move[0] = False
         for i, p in enumerate(plates):
             if p == "Absent":
                 items[i].update_transform(far_far_away)
             if p == "Error":
                 if robot_can_move[0]:
                     print(f"Remove errored plates: {i + 1}")
-                robot_can_move = [False]
+                robot_can_move[0] = False
                 plate_in_move = False
 
             if obstructions[i]:
@@ -215,7 +220,7 @@ def full_scene_sim(scene_file='altscene.json'):
                     obstructions[i] = False
                     print("Cannot obstruct cell with stowed plate")
                 elif p == "Moving":
-                    robot_can_move = False
+                    robot_can_move[0] = False
                     print("Stopping due to obstructed cell")
 
         for state, obj, loc in zip(obstructions, obstructors, obs_locations):
@@ -275,7 +280,7 @@ def full_scene_sim(scene_file='altscene.json'):
         if action_1['stop'] and plate_in_move:
             if obstructions[plate_id]:
                 print("Obstruction detected")
-                robot_can_move = [False]
+                robot_can_move[0] = False
                 plates[plate_id] = "Error"
             else:
                 traj_planner_2.run(pos_table[plate_id])
@@ -286,6 +291,7 @@ def full_scene_sim(scene_file='altscene.json'):
             plate_in_move = False
             p1_stop = False
             plates[plate_id] = "Stowed"
+
 
 if __name__ == '__main__':
     full_scene_sim()
