@@ -11,15 +11,18 @@ class Prop(DHRobot3D):
        It's there, doing its thing. Don't overthink it."""
     # Todo: Known issue where file paths are not formatted properly on linux
 
-    def __init__(self, filename, env, position=None, transform=None, color=None):
+    def __init__(self, filename, env, is_stl=True, position=None, transform=None, color=None):
         links = [rtb.PrismaticDH(theta=0, a=0, alpha=pi/2, qlim=[0, 0])]  # No links needed, but len 0 is forbidden
 
         # Default to a brick red
         color = (133, 34, 48) if color is None else color
         norm_color = [c/255 for c in color]
 
-        link_files = dict(link0=filename, color0=norm_color,
-                          link1=filename, color1=norm_color)  # Link 1 because 0 link robots are forbidden.
+        if is_stl:
+            link_files = dict(link0=filename, color0=norm_color,
+                              link1=filename, color1=norm_color)  # Link 1 because 0 link robots are forbidden.
+        else:
+            link_files = dict(link0=filename, link1=filename)  # Link 1 because 0 link robots are forbidden.
 
         # A joint config and the 3D object transforms to match that config
         qtest = [0]

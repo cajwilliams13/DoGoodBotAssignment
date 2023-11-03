@@ -18,7 +18,6 @@ from spatialmath import SE3
 from tqdm import tqdm
 
 from Gripper.Gripper import Gripper
-from UR3Lin.UR3Lin import UR3Lin
 from myUtils import eng_unit, plural, safe_write_to_file
 
 

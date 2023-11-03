@@ -8,18 +8,18 @@ from math import pi
 from ir_support import UR5
 from spatialmath import SE3
 
-from Sub1.Bricklayer.GantryBot.GantryBot import GantryBot
-from Sub1.Bricklayer.Gripper.Gripper import Gripper
-from Sub1.Bricklayer.Gripper2.Gripper2 import Gripper2
-from Sub1.Bricklayer.ui_v1 import run_gui_in_thread
+from GantryBot.GantryBot import GantryBot
+from Gripper2.Gripper2 import Gripper2
+from e_stop.e_stop import EStop
+from ui_v1 import run_gui_in_thread
 from robotController import RobotController
 from pathplanner import read_scene, PathPlan
 from props import Prop
 
-# Estop should lockout robots (make a check for esttop inn sim step)
+
+# Jeremy estop
 # Arm control from ui -> Override joint values
-# Fake blocks in the cubbies
-# remove reset button
+# Blocks in the cubbies
 # Printer plate spawn issue
 # Arm uses bake to run
 
@@ -39,13 +39,15 @@ def create_sim_env(env, master_transform=None):
 
     props = [
         # Prop('objects\\Estop', env, transform=master_transform * table_offset * SE3(-1, 0.65, 2e-3), color=(100, 0, 0)),
-        Prop('objects\\Pallet_table', env, transform=master_transform * table_offset * SE3(0, -0.25, 0),
-             color=(99, 71, 32)),
+        #Prop('objects\\Pallet_table', env, transform=master_transform * table_offset * SE3(0, -0.25, 0),
+        #     color=(99, 71, 32)),
+        Prop('objects\\Table', env, is_stl=False, transform=master_transform * table_offset * SE3(0, -0.25, 0)),
         Prop('objects\\extinguisher', env, transform=master_transform * SE3(-0.7, 1.35, 0), color=(102, 15, 13)),
         Prop('objects\\store', env, transform=master_transform * SE3(0, 0, 0.45) * SE3.Rz(pi / 2) * SE3(0, 0.8, 0),
              color=(80, 60, 15)),
         Prop('objects\\printer', env, transform=master_transform * table_offset * SE3(0, -0.95, 0) * SE3.Rz(pi),
-             color=(200, 100, 10))
+             color=(200, 100, 10)),
+        Prop('objects\\PlateHolder', env, is_stl=False, transform=master_transform * table_offset * SE3(0, -0.95, 0) * SE3.Rz(pi))
     ]
 
     # Use XYZRz encoded position
@@ -108,12 +110,11 @@ def get_reposition_table():
 
 
 def get_load_path():
-    origin = SE3(0, -0.5, 0.5) * SE3.Rz(pi/2)
+    origin = SE3(0, -0.5, 0.5) * SE3.Rz(pi / 2)
     start_pos = SE3(0, -0.52, 0.1)
     end_pos = SE3(-0.56, -0.4, 0.24)
     rot_start = SE3.Ry(90, unit="deg") * SE3.Rx(90, unit="deg") * SE3.Rz(90, unit="deg")
     rot_end = SE3.Ry(-90, unit="deg") * SE3.Rz(-90, unit="deg")
-
 
     path = PathPlan(SE3(-0.5, 0, 0.5))
     pos = SE3()
@@ -147,7 +148,7 @@ def full_scene_sim(scene_file='altscene.json'):
     env = swift.Swift()
     env.launch(realtime=True)
 
-    scene_offset = SE3(0, 0, 0) * SE3.Rz(0, unit='deg')  # Master transform to move the entire robot + room setup
+    scene_offset = SE3(5, 0, 5) * SE3.Rz(0, unit='deg')  # Master transform to move the entire robot + room setup
     create_sim_env(env, scene_offset)
 
     far_far_away = SE3(1000, 0, 0)  # Very far away
@@ -159,14 +160,15 @@ def full_scene_sim(scene_file='altscene.json'):
     load_path = get_load_path()
 
     plates = ["Absent" for _ in range(8)]
-    #plates[0] = "Waiting"
+    # plates[0] = "Waiting"
 
     null_path = PathPlan(SE3(-0.5, 0, 0.5))
     pos_table.append(null_path)
     traj_planner = RobotController(null_path, robot=UR5, swift_env=env, transform=robot_1_base)
     traj_planner_2 = RobotController(null_path, robot=GantryBot, swift_env=env,
-                                     transform=scene_offset * SE3(-0.7, 0, 0.65) * SE3.Rz(180, unit="deg"), gripper=Gripper2)
-    #traj_planner_2 = RobotController(null_path, robot=UR5, swift_env=env,
+                                     transform=scene_offset * SE3(-0.7, 0, 0.65) * SE3.Rz(180, unit="deg"),
+                                     gripper=Gripper2)
+    # traj_planner_2 = RobotController(null_path, robot=UR5, swift_env=env,
     #                                 transform=robot_1_base * SE3(-0.1, 0, 0))
     # Tool offset needed for brick manipulation
     tool_offset = traj_planner.tool_offset
@@ -174,16 +176,22 @@ def full_scene_sim(scene_file='altscene.json'):
 
     # Place bricks and scene
     items = [Prop('objects\\plate2', env, position, transform=far_far_away, color=(5, 5, 5)) for
-              position in
-              read_scene(scene_file)[0]]
+             position in
+             read_scene(scene_file)[0]]
 
-
-    #time.sleep(10)
+    # time.sleep(10)
 
     robot_can_move = [False]
+    obstructions = [False for _ in range(8)]
+    obstructors = [Prop("objects\\dot", env, transform=far_far_away) for _ in obstructions]
+    obs_locations = [[-0.85, -0.15, 0.24], [-0.85, 0.15, 0.24], [-0.85, 0.4, 0.24],
+                     [-0.85, -0.40, 0.5], [-0.85, -0.15, 0.5], [-0.85, 0.15, 0.5], [-0.85, 0.40, 0.5],
+                     [-0.85, -0.40, 0.24]]
+    obs_locations = [scene_offset * SE3(0, 0, 0.7) * SE3(*loc) for loc in obs_locations]
 
-    gui_thread = Thread(target=run_gui_in_thread,  kwargs={"r1":traj_planner, "r2": traj_planner_2,
-                                                           "plates": plates, "robot_can_move": robot_can_move})
+    gui_thread = Thread(target=run_gui_in_thread, kwargs={"r1": traj_planner, "r2": traj_planner_2,
+                                                          "plates": plates, "robot_can_move": robot_can_move,
+                                                          "obstructions": obstructions})
     gui_thread.start()
 
     held_id = None
@@ -191,21 +199,51 @@ def full_scene_sim(scene_file='altscene.json'):
     plate_in_move = False
     p1_stop = False
 
+    estop_button = EStop(initial_pose=SE3(), use_physical_button=True)
+    estop_button.add_to_env(env)
+
     while True:
+        
         for i, p in enumerate(plates):
             if p == "Absent":
                 items[i].update_transform(far_far_away)
+            if p == "Error":
+                if robot_can_move[0]:
+                    print(f"Remove errored plates: {i + 1}")
+                robot_can_move = [False]
+                plate_in_move = False
+
+            if obstructions[i]:
+                if p == "Stowed":
+                    obstructions[i] = False
+                    print("Cannot obstruct cell with stowed plate")
+                elif p == "Moving":
+                    robot_can_move = False
+                    print("Stopping due to obstructed cell")
+
+        for state, obj, loc in zip(obstructions, obstructors, obs_locations):
+            if state:
+                obj.update_transform(loc)
+            else:
+                obj.update_transform(far_far_away)
 
         if not plate_in_move and not any([p == "Moving" for p in plates]):
             for i, p in enumerate(plates):
                 if p == "Waiting":
-                    plate_id = i
-                    plate_in_move = True
-                    traj_planner.simulation_step(not robot_can_move[0])
-                    traj_planner.run(load_path)
-                    items[i].update_transform(printer_spawn)
-                    p1_stop = False
-            #print(plates)
+                    if obstructions[i]:
+                        plates[i] = "Obstructed"
+                        print("Cell is obstructed")
+                    else:
+                        plate_id = i
+                        plate_in_move = True
+                        traj_planner.simulation_step(not robot_can_move[0])
+                        traj_planner.run(load_path)
+                        items[i].update_transform(printer_spawn)
+                        p1_stop = False
+                elif p == "Obstructed":
+                    if not obstructions[i]:
+                        plates[i] = "Absent"
+            # print(plates)
 
         action_1 = traj_planner.simulation_step(not robot_can_move[0])
         action_2 = traj_planner_2.simulation_step(not robot_can_move[0])
@@ -238,18 +276,19 @@ def full_scene_sim(scene_file='altscene.json'):
         # env.step(0)
 
         if action_1['stop'] and plate_in_move:
-            traj_planner_2.run(pos_table[plate_id])
-            plates[plate_id] = "Moving"
-            p1_stop = True
+            if obstructions[plate_id]:
+                print("Obstruction detected")
+                robot_can_move = [False]
+                plates[plate_id] = "Error"
+            else:
+                traj_planner_2.run(pos_table[plate_id])
+                plates[plate_id] = "Moving"
+                p1_stop = True
 
         if action_2['stop'] and p1_stop:
             plate_in_move = False
             p1_stop = False
             plates[plate_id] = "Stowed"
-            #break
-
-    env.hold()
-
 
 if __name__ == '__main__':
     full_scene_sim()

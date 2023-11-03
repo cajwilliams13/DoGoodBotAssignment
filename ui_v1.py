@@ -3,13 +3,14 @@ from tkinter import ttk, messagebox
 from threading import Thread
 
 class RobotControlGUI(tk.Tk):
-    def __init__(self, r1=None, r2=None, plates=None, robot_can_move=None):
+    def __init__(self, r1=None, r2=None, plates=None, robot_can_move=None, obstructions=None):
         super().__init__()
 
         self.robot_1 = r1
         self.robot_2 = r2
         self.plates = plates
         self.robots_allowed_to_run = robot_can_move
+        self.obstructions = obstructions
 
         self.title("Robot Control Interface")
         self.estop_active = True
@@ -189,6 +190,8 @@ class RobotControlGUI(tk.Tk):
                                                                                                   padx=5, pady=5)
             ttk.Button(printer_frame, text="Remove", command=lambda i=i: self.remove_plate(i)).grid(row=i, column=2,
                                                                                                     padx=5, pady=5)
+            ttk.Button(printer_frame, text="Obstruct", command=lambda i=i: self.obstruct_cell(i)).grid(row=i, column=3,
+                                                                                                      padx=5, pady=5)
 
     def spawn_plate(self, plate_id):
         print(f"Spawn plate {plate_id + 1}")  # replace with the actual function
@@ -200,6 +203,10 @@ class RobotControlGUI(tk.Tk):
     def remove_plate(self, plate_id):
         print(f"Remove plate {plate_id + 1}")  # replace with the actual function
         self.plates[plate_id] = "Absent"
+
+    def obstruct_cell(self, cell_id):
+        self.obstructions[cell_id] = not self.obstructions[cell_id]
+        print(self.obstructions)
 
     def query_plate_status(self, plate_id):
         # Dummy function to return status. Replace with the actual function.
