@@ -48,10 +48,7 @@ def create_sim_env(env, master_transform=None):
     ]
 
     # Use XYZRz encoded position
-    gate_locations = [(-1.8, 0, 0, 0), (-1.8, -gate_len, 0, 0), (1.8, 0, 0, 0), (1.8, -gate_len, 0, 0),
-                      (1.8 - gate_len, -gate_len, 0, 90), (1.8, -gate_len, 0, 90),
-                      (1.8 - 2 * gate_len, -gate_len, 0, 90),
-                      (1.8, gate_len, 0, 90), (1.8 - 2 * gate_len, gate_len, 0, 90)]
+    gate_locations = [(-1.5, -2.4, 0, 0), (-1.5, 1.15, 0, 0)]
 
     extra_gate_locations = [(*g[:2], 0.6, g[3]) for g in gate_locations]  # Add a second layer of gates
     extra_gate_locations += [(*g[:2], 1.2, g[3]) for g in gate_locations]  # Add a third layer of gates
