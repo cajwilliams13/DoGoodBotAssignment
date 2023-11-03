@@ -16,7 +16,6 @@ from robotController import RobotController
 from ui_v1 import run_gui_in_thread
 
 
-# Jeremy estop
 # Arm control from ui -> Override joint values
 # Blocks in the cubbies
 # Printer plate spawn issue
@@ -55,8 +54,9 @@ def create_sim_env(env, master_transform=None):
                       (1.8 - 2 * gate_len, -gate_len, 0, 90),
                       (1.8, gate_len, 0, 90), (1.8 - 2 * gate_len, gate_len, 0, 90)]
 
-    gate_locations += [(*g[:2], 0.6, g[3]) for g in gate_locations]  # Add a second layer of gates
-
+    extra_gate_locations = [(*g[:2], 0.6, g[3]) for g in gate_locations]  # Add a second layer of gates
+    extra_gate_locations += [(*g[:2], 1.2, g[3]) for g in gate_locations]  # Add a third layer of gates
+    gate_locations += extra_gate_locations
     # props.append(Prop('objects\\Estop', env, color=(100, 0, 0), transform=master_transform * table_offset *
     #                                                                      SE3(1.82 - gate_len, gate_len - 0.02, 0.561)))
 
@@ -73,8 +73,8 @@ def get_reposition_table():
     rot_correct = SE3.Ry(-90, unit="deg") * SE3.Rz(-90, unit="deg")
     move_out_offset = SE3(-0.2, 0, 0)
     move_in_offset = SE3(0.1, 0, 0)
-    targets = [SE3(0, 0.1, 0), SE3(0, -0.1, 0), SE3(0, -0.4, 0),
-               SE3(0, 0.4, 0.26), SE3(0, 0.1, 0.26), SE3(0, -0.1, 0.26), SE3(0, -0.4, 0.26)]
+    targets = [SE3(-0.1, 0.1, 0), SE3(-0.1, -0.1, 0), SE3(-0.1, -0.4, 0),
+               SE3(-0.1, 0.4, 0.26), SE3(-0.1, 0.1, 0.26), SE3(-0.1, -0.1, 0.26), SE3(-0.1, -0.4, 0.26)]
 
     targets = [t * correction for t in targets]
 
@@ -95,6 +95,7 @@ def get_reposition_table():
 
         pos = t
         path.add_path(pos * rot_correct, "m")
+        pos *= move_in_offset
         pos *= move_in_offset
         path.add_path(pos * rot_correct, "m")
         path.add_path(action="rel", obj_id=0)
@@ -204,7 +205,8 @@ def full_scene_sim(scene_file='altscene.json'):
     estop_button.add_to_env(env)
 
     while True:
-        robot_can_move[0] = not estop_button.get_state()
+        if estop_button.get_state():
+            robot_can_move[0] = False
         for i, p in enumerate(plates):
             if p == "Absent":
                 items[i].update_transform(far_far_away)
