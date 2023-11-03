@@ -37,15 +37,17 @@ def create_sim_env(env, master_transform=None):
 
     props = [
         # Prop('objects\\Estop', env, transform=master_transform * table_offset * SE3(-1, 0.65, 2e-3), color=(100, 0, 0)),
-        Prop('objects\\Pallet_table', env, transform=master_transform * table_offset * SE3(0, -0.25, 0),
+        Prop('objects\\TableEdited', env, transform=master_transform * table_offset * SE3(0, -0.25, 0),
             color=(99, 71, 32)),
         # Prop('objects\\Pallet_table', env, is_stl=True, transform=master_transform * table_offset * SE3(0, -0.25, 0)),
         Prop('objects\\extinguisher', env, transform=master_transform * SE3(-0.7, 1.35, 0), color=(102, 15, 13)),
-        Prop('objects\\store', env, transform=master_transform * SE3(0, 0, 0.45) * SE3.Rz(pi / 2) * SE3(0, 0.8, 0),
+        Prop('objects\\StorageEdited', env, transform=master_transform * SE3(0, 0, 0.45) * SE3.Rz(pi / 2) * SE3(0, 0.8, 0),
+             color=(80, 60, 15)),
+        Prop('objects\\RoomEdited', env, transform=master_transform * SE3(3, 2.5, -0.2) * SE3.Rz(pi / 2) * SE3(0, 0.8, 0),
              color=(80, 60, 15)),
         Prop('objects\\printer', env, transform=master_transform * table_offset * SE3(0, -0.95, 0) * SE3.Rz(pi),
              color=(200, 100, 10)),
-        # Prop('objects\\PlateHolder', env, is_stl=False, transform=master_transform * table_offset * SE3(0, -0.95, 0) * SE3.Rz(pi))
+        Prop('objects\\HolderEdited', env, is_stl=False, transform=master_transform * table_offset * SE3(0, -0.95, 0) * SE3.Rz(pi))
     ]
 
     # Use XYZRz encoded position
@@ -146,7 +148,7 @@ def full_scene_sim(scene_file='altscene.json'):
     env = swift.Swift()
     env.launch(realtime=True)
 
-    scene_offset = SE3(5, 0, 5) * SE3.Rz(0, unit='deg')  # Master transform to move the entire robot + room setup
+    scene_offset = SE3(0, 0, 0.5) * SE3.Rz(0, unit='deg')  # Master transform to move the entire robot + room setup
     create_sim_env(env, scene_offset)
 
     far_far_away = SE3(1000, 0, 0)  # Very far away
