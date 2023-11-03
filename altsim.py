@@ -39,8 +39,8 @@ def create_sim_env(env, master_transform=None):
         # Prop('objects\\Estop', env, transform=master_transform * table_offset * SE3(-1, 0.65, 2e-3), color=(100, 0, 0)),
         Prop('objects\\TableEdited', env, transform=master_transform * table_offset * SE3(-1.5, 1.2, 0), color=(99, 71, 32)),
         #Prop('objects\\extinguisher', env, transform=master_transform * SE3(-0.7, 1.35, 0), color=(102, 15, 13)),
-        Prop('objects\\StorageEdited', env, transform=master_transform * SE3(-0.8, -0.5, 0.65) * SE3.Rz(pi / 2),color=(80, 60, 15)),
-        Prop('objects\\printer', env, transform=master_transform * table_offset * SE3(0.3, -0.95, 0.02) * SE3.Rz(pi),color=(0, 0, 1)),
+        Prop('objects\\StorageEdited', env, transform=master_transform * SE3(-0.5, -0.5, 0.65) * SE3.Rz(pi / 2),color=(80, 60, 15)),
+        Prop('objects\\printer', env, transform=master_transform * table_offset * SE3(0.3, -0.95, 0.05) * SE3.Rz(pi),color=(0, 0, 1)),
         Prop('objects\\HolderEdited', env, is_stl=False, transform=master_transform * table_offset * SE3(0.8, -0.95, 0) * SE3.Rz(pi)),
         Prop('objects\\FloorEdited', env, is_stl=False, transform=master_transform * table_offset * SE3(3, 2.5, -1) * SE3.Rz(pi/2), color = (100, 10, 10)),
         Prop('objects\\WallsEdited', env, is_stl=False, transform=master_transform * table_offset * SE3(3, 2.5, -1) * SE3.Rz(pi/2), color = (100, 10, 10))
@@ -63,14 +63,14 @@ def create_sim_env(env, master_transform=None):
 
 
 def get_reposition_table():
-    correction = SE3(0.4, 0, 0.24)
+    correction = SE3(0.1, 0, 0.24)
     origin = SE3(0.1, 0, 0) * correction
     start_pos = SE3(0, 0.4, 0) * correction
     rot_correct = SE3.Ry(-90, unit="deg") * SE3.Rz(-90, unit="deg")
     move_out_offset = SE3(-0.2, 0, 0)
     move_in_offset = SE3(0.1, 0, 0)
-    targets = [SE3(-0.1, 0.1, 0), SE3(-0.1, -0.1, 0), SE3(-0.1, -0.4, 0),
-               SE3(-0.1, 0.4, 0.26), SE3(-0.1, 0.1, 0.26), SE3(-0.1, -0.1, 0.26), SE3(-0.1, -0.4, 0.26)]
+    targets = [SE3(-0.1, 0.1, 0), SE3(-0.1, -0.2, 0), SE3(-0.1, -0.5, 0),
+               SE3(-0.1, 0.4, 0.26), SE3(-0.1, 0.1, 0.26), SE3(-0.1, -0.2, 0.26), SE3(-0.1, -0.5, 0.26)]
 
     targets = [t * correction for t in targets]
 
@@ -133,6 +133,7 @@ def get_load_path():
     path.add_path(action="rel", obj_id=0)
     pos *= SE3(0.6, 0, 0)
     path.add_path(pos * rot_end, "m")
+
     path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
                    1.01747401e+00, 1.20284037e-06], "joint")
     path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
@@ -150,9 +151,9 @@ def full_scene_sim(scene_file='altscene.json'):
     create_sim_env(env, scene_offset)
 
     far_far_away = SE3(1000, 0, 0)  # Very far away
-    printer_spawn = scene_offset * SE3(0, -0.15, 0.65)
+    printer_spawn = scene_offset * SE3(0.3, -0.73, 0.8)
 
-    robot_1_base = scene_offset * SE3(0, 0, 0.65)
+    robot_1_base = scene_offset * SE3(0.3, 0, 0.65)
 
     pos_table = get_reposition_table()
     load_path = get_load_path()
@@ -173,7 +174,7 @@ def full_scene_sim(scene_file='altscene.json'):
     tool_offset2 = traj_planner_2.tool_offset
 
     # Place bricks and scene
-    items = [Prop('objects\\plate2', env, position, transform=far_far_away, color=(5, 5, 5)) for
+    items = [Prop('objects\\plate2', env, position, transform=far_far_away, color=(0, 100, 0)) for
              position in
              read_scene(scene_file)[0]]
 
@@ -283,6 +284,7 @@ def full_scene_sim(scene_file='altscene.json'):
                 traj_planner_2.run(pos_table[plate_id])
                 plates[plate_id] = "Moving"
                 p1_stop = True
+                #traj_planner.run(refill)
 
         if action_2['stop'] and p1_stop:
             plate_in_move = False
