@@ -39,11 +39,17 @@ def create_sim_env(env, master_transform=None):
         #Prop('objects\\Estop', env, transform=master_transform * table_offset * SE3(-2, 0.65, 2e-3), color=(100, 0, 0)),
         Prop('objects\\TableEdited', env, transform=master_transform * table_offset * SE3(-1.5, 1.2, 0), color=(99, 71, 32)),
         Prop('objects\\extinguisher', env, transform=master_transform * SE3(-2, 1.35, 0), color=(102, 15, 13)),
-        Prop('objects\\StorageEdited', env, transform=master_transform * SE3(-0.8, -0.5, 0.65) * SE3.Rz(pi / 2),color=(80, 60, 15)),
+        Prop('objects\\StorageEdited', env, transform=master_transform * SE3(-0.5, -0.5, 0.65) * SE3.Rz(pi / 2),color=(80, 60, 15)),
         Prop('objects\\printer', env, transform=master_transform * table_offset * SE3(0.3, -0.95, 0.02) * SE3.Rz(pi),color=(0, 0, 1)),
-        Prop('objects\\HolderEdited', env, is_stl=False, transform=master_transform * table_offset * SE3(0.8, -0.95, 0) * SE3.Rz(pi)),
+        #Prop('objects\\HolderEdited', env, is_stl=False, transform=master_transform * table_offset * SE3(0.8, -0.95, 0) * SE3.Rz(pi)),
         Prop('objects\\FloorEdited', env, is_stl=False, transform=master_transform * table_offset * SE3(3, 2.5, -1) * SE3.Rz(pi/2), color = (100, 10, 10)),
-        Prop('objects\\WallsEdited', env, is_stl=False, transform=master_transform * table_offset * SE3(3, 2.5, -1) * SE3.Rz(pi/2), color = (100, 10, 10))
+        Prop('objects\\WallsEdited', env, is_stl=False, transform=master_transform * table_offset * SE3(3, 2.5, -1) * SE3.Rz(pi/2), color = (100, 10, 10)),
+        Prop('objects\\OverheadLightEdited', env, transform=master_transform * table_offset * SE3(0.2, -0.1, 1.5), color=(200, 200, 200)),
+        Prop('objects\\OverheadLightEdited', env, transform=master_transform * table_offset * SE3(1, -0.1, 1.5), color=(200, 200, 200)),
+        Prop('objects\\OverheadLightEdited', env, transform=master_transform * table_offset * SE3(-3, -0.1, 1.5), color=(200, 200, 200)),
+        Prop('objects\\WarningSignEdited', env, transform=master_transform * table_offset * SE3(-1.53, 1.5, 0.65) * SE3.Rz(-pi/2) * SE3.Rx(pi/2), color=(200, 50, 50)),
+        Prop('objects\\LightCurtainEdited', env, transform=master_transform * table_offset * SE3(-1.53, 1.15, -0.7) * SE3.Rz(-pi / 2), color=(200, 50, 50)),
+        Prop('objects\\LightCurtainEdited', env, transform=master_transform * table_offset * SE3(-1.53, -1.15, -0.7) * SE3.Rz(-pi / 2), color=(200, 50, 50)),
 
     ]
 
@@ -216,9 +222,9 @@ def full_scene_sim(scene_file='altscene.json'):
     robot_can_move = [False]
     obstructions = [False for _ in range(8)]
     obstructors = [Prop("objects\\dot", env, transform=far_far_away) for _ in obstructions]
-    obs_locations = [[-0.85, -0.15, 0.24], [-0.85, 0.15, 0.24], [-0.85, 0.4, 0.24],
-                     [-0.85, -0.40, 0.5], [-0.85, -0.15, 0.5], [-0.85, 0.15, 0.5], [-0.85, 0.40, 0.5],
-                     [-0.85, -0.40, 0.24]]
+    obs_locations = [[-0.55, -0.15, 0.24], [-0.55, 0.15, 0.24], [-0.55, 0.4, 0.24],
+                     [-0.55, -0.40, 0.5], [-0.55, -0.15, 0.5], [-0.55, 0.15, 0.5], [-0.55, 0.40, 0.5],
+                     [-0.55, -0.40, 0.24]]
     obs_locations = [scene_offset * SE3(0, 0, 0.7) * SE3(*loc) for loc in obs_locations]
 
     gui_thread = Thread(target=run_gui_in_thread, kwargs={"r1": traj_planner, "r2": traj_planner_2,
