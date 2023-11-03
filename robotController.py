@@ -48,7 +48,7 @@ class RobotController:
 
         self.base_offset = transform if transform is not None else SE3()
 
-        self.arm = UR3Lin() if robot is None else robot()
+        self.arm = robot()
         self.gripper = Gripper() if gripper is None else gripper()
 
         self.debug = False
@@ -72,10 +72,12 @@ class RobotController:
             self.arm.links[2].qlim = [-pi / 2, 0]
             self.arm.links[3].qlim = [-pi / 2, 0]
             self.arm.links[4].qlim = [-pi, 0]
+
         elif len(self.arm.q) == 6:
             self.arm.q = [0, -pi / 2, 0, 0, 0, 0]  # Known safe start values
             for i in range(len(self.arm.links)):
                 self.arm.links[i].qlim = [-pi, pi]
+            self.debug = True
 
 
             self.arm.links[1].qlim = [-pi, 0]
@@ -255,6 +257,11 @@ class RobotController:
             self.current_trajectory['joints'] = self.get_trajectory(end, rapid=next_instr['action'] == 'rpd')
             #print(f"Moving to transform:\n{end}")
             return True
+        if next_instr['action'] == "joint":
+            end = next_instr["point"]
+            self.current_trajectory["joints"] = self._interpolate_joints(self.arm.q, end,
+                                                                         count=5 * self.step_count * self.interp_count)
+            return True
 
         if next_instr['action'] == 'grb':
             self.current_trajectory['grip'] = next_instr['id']
@@ -333,8 +340,9 @@ class RobotController:
             pass
             #print(f"Warning: IK tolerance above limit: {ee_error}")
 
-    def _interpolate_joints(self, j_start, j_end):
-        return [j_start + fraction * (j_end - j_start) for fraction in np.linspace(0, 1, self.interp_count)]
+    def _interpolate_joints(self, j_start, j_end, count=None):
+        count = self.interp_count if count is None else count
+        return [j_start + fraction * (j_end - j_start) for fraction in np.linspace(0, 1, count)]
 
     def get_end_effector_transform(self):
         return self.arm.fkine(self.arm.q)
@@ -439,8 +447,8 @@ class RobotController:
                 gripper_val = self.current_trajectory['gripper'].pop(0)
             self.gripper.setq(gripper_val)  # Must run to update base position
             if self.debug:
-                #print(self.gripper.base)
-                Prop('objects\\dot', self.swift_env, transform=self.gripper.base)
+                pass
+                #Prop('objects\\dot', self.swift_env, transform=self.gripper.base)
             self.arm.q = current_step[:]
             action = {
                 'stop': False,
@@ -489,8 +497,11 @@ class RobotController:
         return True, self.current_trajectory
 
     def tweak(self, joint, dist):
-        p = PathPlan(self.arm.q)
+        if self.instruction_index != len(self.path.path_points) - 1:
+            return
+        
         q = self.arm.q
         q[joint] += dist / 180 * pi
-        p.add_path(self.arm.fkine(q), "rpd")
-        self.run(p)
+        self.arm.q = q
+        self.gripper.base = self.arm.fkine(self.arm.q) * self.gripper_base_offset
+        self.gripper.setq(None)

@@ -15,6 +15,7 @@ from props import Prop
 from robotController import RobotController
 from ui_v1 import run_gui_in_thread
 
+
 # Jeremy estop
 # Arm control from ui -> Override joint values
 # Blocks in the cubbies
@@ -38,7 +39,7 @@ def create_sim_env(env, master_transform=None):
     props = [
         # Prop('objects\\Estop', env, transform=master_transform * table_offset * SE3(-1, 0.65, 2e-3), color=(100, 0, 0)),
         Prop('objects\\Pallet_table', env, transform=master_transform * table_offset * SE3(0, -0.25, 0),
-            color=(99, 71, 32)),
+             color=(99, 71, 32)),
         # Prop('objects\\Pallet_table', env, is_stl=True, transform=master_transform * table_offset * SE3(0, -0.25, 0)),
         Prop('objects\\extinguisher', env, transform=master_transform * SE3(-0.7, 1.35, 0), color=(102, 15, 13)),
         Prop('objects\\store', env, transform=master_transform * SE3(0, 0, 0.45) * SE3.Rz(pi / 2) * SE3(0, 0.8, 0),
@@ -115,10 +116,11 @@ def get_load_path():
     rot_end = SE3.Ry(-90, unit="deg") * SE3.Rz(-90, unit="deg")
 
     path = PathPlan(SE3(-0.5, 0, 0.5))
-    pos = SE3()
 
-    pos *= origin
-    path.add_path(pos * rot_start, "rpd")
+    path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
+                   1.01747401e+00, 1.20284037e-06], "joint")
+    path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
+                   1.01747401e+00, 1.20284037e-06], "joint")
     pos = start_pos
     path.add_path(pos * rot_start, "rpd")
     pos *= SE3(0, -0.3, 0)
@@ -132,11 +134,12 @@ def get_load_path():
     pos *= SE3(-0.3, 0, 0)
     path.add_path(pos * rot_end, "m")
     path.add_path(action="rel", obj_id=0)
-    pos *= SE3(0.3, 0, 0)
+    pos *= SE3(0.6, 0, 0)
     path.add_path(pos * rot_end, "m")
-    pos = origin
-    path.add_path(pos * rot_end, "rpd")
-    path.add_path(pos * rot_end, "rpd")
+    path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
+                   1.01747401e+00, 1.20284037e-06], "joint")
+    path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
+                   1.01747401e+00, 1.20284037e-06], "joint")
 
     return path
 
@@ -146,7 +149,7 @@ def full_scene_sim(scene_file='altscene.json'):
     env = swift.Swift()
     env.launch(realtime=True)
 
-    scene_offset = SE3(5, 0, 5) * SE3.Rz(0, unit='deg')  # Master transform to move the entire robot + room setup
+    scene_offset = SE3(0, 0, 0) * SE3.Rz(0, unit='deg')  # Master transform to move the entire robot + room setup
     create_sim_env(env, scene_offset)
 
     far_far_away = SE3(1000, 0, 0)  # Very far away
@@ -158,7 +161,7 @@ def full_scene_sim(scene_file='altscene.json'):
     load_path = get_load_path()
 
     plates = ["Absent" for _ in range(8)]
-    # plates[0] = "Waiting"
+    #plates[0] = "Waiting"
 
     null_path = PathPlan(SE3(-0.5, 0, 0.5))
     pos_table.append(null_path)
@@ -208,7 +211,7 @@ def full_scene_sim(scene_file='altscene.json'):
             if p == "Error":
                 if robot_can_move[0]:
                     print(f"Remove errored plates: {i + 1}")
-                robot_can_move = [False]
+                robot_can_move[0] = False
                 plate_in_move = False
 
             if obstructions[i]:
@@ -216,7 +219,7 @@ def full_scene_sim(scene_file='altscene.json'):
                     obstructions[i] = False
                     print("Cannot obstruct cell with stowed plate")
                 elif p == "Moving":
-                    robot_can_move = False
+                    robot_can_move[0] = False
                     print("Stopping due to obstructed cell")
 
         for state, obj, loc in zip(obstructions, obstructors, obs_locations):
@@ -276,7 +279,7 @@ def full_scene_sim(scene_file='altscene.json'):
         if action_1['stop'] and plate_in_move:
             if obstructions[plate_id]:
                 print("Obstruction detected")
-                robot_can_move = [False]
+                robot_can_move[0] = False
                 plates[plate_id] = "Error"
             else:
                 traj_planner_2.run(pos_table[plate_id])
@@ -287,6 +290,7 @@ def full_scene_sim(scene_file='altscene.json'):
             plate_in_move = False
             p1_stop = False
             plates[plate_id] = "Stowed"
+
 
 if __name__ == '__main__':
     full_scene_sim()

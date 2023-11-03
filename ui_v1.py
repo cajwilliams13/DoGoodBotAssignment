@@ -27,35 +27,19 @@ class RobotControlGUI(tk.Tk):
         self.start_btn = ttk.Button(prod_cell_frame, text="Start", command=self.start, state=tk.DISABLED)
         self.start_btn.grid(row=0, column=2, padx=5, pady=5)
 
-        # Toggle Mode Button
-        #self.mode = tk.StringVar(value="Mode: Joint")
-        #self.toggle_mode_btn = ttk.Button(prod_cell_frame, textvariable=self.mode, command=self.toggle_mode)
-        #self.toggle_mode_btn.grid(row=0, column=0, padx=5, pady=5)
-
         self.create_robot_interface()
 
         # Create frame for Printer Plate control
         self.printer_plate_frame = ttk.LabelFrame(self, text="Printer Plate Control")
         self.printer_plate_frame.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
-        self.plate_status_vars = [tk.StringVar(value=self.query_plate_status(i)) for i in range(8)]
         self.create_printer_plate_controls()
 
         self.axis_vals = {}
         self.rot_vals = {}
 
-        #self.robots_allowed_to_run = False
-
-    def update_status(self, new_status):
-        """Updates the status message with the given text."""
-        self.status_var.set(new_status)
-
     def create_robot_interface(self):
-        if True: #"Joint" in self.mode.get():
-            self.create_joint_controls("Robot Joint Control 1", 1, 6, 1, 0)
-            self.create_joint_controls("Robot Joint Control 2", 2, 3, 2, 0)
-        else:
-            self.create_xyz_controls("Robot XYZ Control 1", 1, 0, 1)
-            self.create_xyz_controls("Robot XYZ Control 2", 2, 0, 2)
+        self.create_joint_controls("Robot Joint Control 1", 1, 6, 1, 0)
+        self.create_joint_controls("Robot Joint Control 2", 2, 3, 2, 0)
 
         # Disable robot control panels if E-STOP is pressed
         if self.estop_active:
@@ -67,43 +51,8 @@ class RobotControlGUI(tk.Tk):
 
         for i in range(joints):
             ttk.Label(joint_frame, text=f"Joint {i+1}:").grid(row=i, column=0, padx=5, pady=5)
-            #ttk.Label(joint_frame, text=str(self.get_joint_value(robot_num, i))).grid(row=i, column=1, padx=5, pady=5)
             ttk.Button(joint_frame, text="+", command=lambda i=i: self.move_joint(robot_num, i, "+")).grid(row=i, column=2, padx=5, pady=5)
             ttk.Button(joint_frame, text="-", command=lambda i=i: self.move_joint(robot_num, i, "-")).grid(row=i, column=3, padx=5, pady=5)
-
-    def create_xyz_controls(self, label, robot_num, row, col):
-        raise NotImplementedError
-        frame = ttk.LabelFrame(self, text=label)
-        frame.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
-
-        # XYZ labels, readouts, and control buttons
-        for index, axis in enumerate(['X', 'Y', 'Z']):
-            ttk.Label(frame, text=axis).grid(row=index, column=0, padx=5, pady=5)
-
-            # Update the StringVar dictionary structure
-            if robot_num not in self.axis_vals:
-                self.axis_vals[robot_num] = {}
-            self.axis_vals[robot_num][axis] = tk.StringVar(value=str(self.get_pos_value(robot_num, axis)))
-            ttk.Label(frame, textvariable=self.axis_vals[robot_num][axis]).grid(row=index, column=1, padx=5, pady=5)
-            ttk.Button(frame, text=f"+ {axis}").grid(row=index, column=2, padx=5, pady=5)
-            ttk.Button(frame, text=f"- {axis}").grid(row=index, column=3, padx=5, pady=5)
-
-        # Rotation labels, readouts, and control buttons
-        for index, axis in enumerate(['RX', 'RY', 'RZ']):
-            ttk.Label(frame, text=axis).grid(row=index + 3, column=0, padx=5, pady=5)
-
-            # Update the StringVar dictionary structure
-            if robot_num not in self.rot_vals:
-                self.rot_vals[robot_num] = {}
-            self.rot_vals[robot_num][axis] = tk.StringVar(value=str(self.get_rot_value(robot_num, axis)))
-            ttk.Label(frame, textvariable=self.rot_vals[robot_num][axis]).grid(row=index + 3, column=1, padx=5, pady=5)
-            ttk.Button(frame, text=f"+ {axis}").grid(row=index + 3, column=2, padx=5, pady=5)
-            ttk.Button(frame, text=f"- {axis}").grid(row=index + 3, column=3, padx=5, pady=5)
-
-        # Reset and Toggle Gripper buttons
-        ttk.Button(frame, text="Reset", command=lambda: self.reset(robot_num)).grid(row=6, column=2, padx=5, pady=5)
-        ttk.Button(frame, text="Toggle Gripper", command=lambda: self.toggle_gripper(robot_num)).grid(row=6, column=3,
-                                                                                                      padx=5, pady=5)
 
     def create_robot_frame(self, title, joints, col, row, joint_values_list):
         robot_frame = ttk.LabelFrame(self, text=title)
@@ -119,7 +68,7 @@ class RobotControlGUI(tk.Tk):
         ttk.Button(robot_frame, text="Toggle gripper", command=self.toggle_gripper).grid(row=joints, column=1, columnspan=3, padx=5, pady=5)
 
     def move_joint(self, id, joint, direction):
-        r = self.robot_1 if id == 0 else self.robot_2
+        r = self.robot_1 if id == 1 else self.robot_2
 
         if direction == "+":
             r.tweak(joint, 5)
@@ -145,19 +94,6 @@ class RobotControlGUI(tk.Tk):
             self.mode.set("Mode: Joint")
 
         self.create_robot_interface()
-
-    def get_joint_value(self, robot_num, joint):
-        if robot_num == 0:
-            return round(self.robot_1.arm.q[joint], 4)
-        if robot_num == 1:
-            return round(self.robot_2.arm.q[joint], 4)
-        return 0
-
-    def get_pos_value(self, robot_num, axes):
-        return 0
-
-    def get_rot_value(self, robot_num, axes):
-        return 0
 
     def disable_controls(self):
         for child in self.winfo_children():
@@ -208,16 +144,11 @@ class RobotControlGUI(tk.Tk):
         self.obstructions[cell_id] = not self.obstructions[cell_id]
         print(self.obstructions)
 
-    def query_plate_status(self, plate_id):
-        # Dummy function to return status. Replace with the actual function.
-        return "Absent"
-
-
-
 
 def run_gui_in_thread(**kargs):
     app = RobotControlGUI(**kargs)
     app.mainloop()
+
 
 if __name__ == "__main__":
     gui_thread = Thread(target=run_gui_in_thread)
