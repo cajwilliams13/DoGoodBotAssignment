@@ -63,14 +63,14 @@ def create_sim_env(env, master_transform=None):
 
 
 def get_reposition_table():
-    correction = SE3(0.4, 0, 0.24)
+    correction = SE3(0.1, 0, 0.24)
     origin = SE3(0.1, 0, 0) * correction
     start_pos = SE3(0, 0.4, 0) * correction
     rot_correct = SE3.Ry(-90, unit="deg") * SE3.Rz(-90, unit="deg")
     move_out_offset = SE3(-0.2, 0, 0)
     move_in_offset = SE3(0.1, 0, 0)
-    targets = [SE3(-0.1, 0.1, 0), SE3(-0.1, -0.1, 0), SE3(-0.1, -0.4, 0),
-               SE3(-0.1, 0.4, 0.26), SE3(-0.1, 0.1, 0.26), SE3(-0.1, -0.1, 0.26), SE3(-0.1, -0.4, 0.26)]
+    targets = [SE3(-0.1, 0.1, 0), SE3(-0.1, -0.2, 0), SE3(-0.1, -0.5, 0),
+               SE3(-0.1, 0.4, 0.26), SE3(-0.1, 0.1, 0.26), SE3(-0.1, -0.2, 0.26), SE3(-0.1, -0.5, 0.26)]
 
     targets = [t * correction for t in targets]
 
@@ -133,6 +133,39 @@ def get_load_path():
     path.add_path(action="rel", obj_id=0)
     pos *= SE3(0.6, 0, 0)
     path.add_path(pos * rot_end, "m")
+
+    path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
+                   1.01747401e+00, 1.20284037e-06], "joint")
+    path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
+                   1.01747401e+00, 1.20284037e-06], "joint")
+
+    return path
+
+
+def get_refill_path():
+    origin = SE3(0, -0.5, 0.5) * SE3.Rz(pi / 2)
+    start_pos = SE3(0.2, -0.52, 0.1)
+    end_pos = SE3(0, -0.52, 0.1)
+    rot_start = SE3.Ry(90, unit="deg") * SE3.Rx(90, unit="deg") * SE3.Rz(90, unit="deg")
+
+    path = PathPlan(SE3(-0.5, 0, 0.5))
+    
+    pos = start_pos
+    path.add_path(pos * rot_start, "rpd")
+    pos *= SE3(0, 0, -0.3)
+    path.add_path(pos * rot_start, "m")
+    path.add_path(action="grb", obj_id=0)
+    pos *= SE3(0, 0, 0.3)
+    path.add_path(pos * rot_start, "m")
+
+    pos = end_pos
+    path.add_path(pos * rot_start, "rpd")
+    pos *= SE3(-0.3, 0, 0)
+    path.add_path(pos * rot_start, "m")
+    path.add_path(action="rel", obj_id=0)
+    pos *= SE3(0.6, 0, 0)
+    path.add_path(pos * rot_start, "m")
+
     path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
                    1.01747401e+00, 1.20284037e-06], "joint")
     path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
@@ -150,9 +183,9 @@ def full_scene_sim(scene_file='altscene.json'):
     create_sim_env(env, scene_offset)
 
     far_far_away = SE3(1000, 0, 0)  # Very far away
-    printer_spawn = scene_offset * SE3(0, -0.15, 0.65)
+    printer_spawn = scene_offset * SE3(0.3, -0.73, 0.8)
 
-    robot_1_base = scene_offset * SE3(0, 0, 0.65)
+    robot_1_base = scene_offset * SE3(0.3, 0, 0.65)
 
     pos_table = get_reposition_table()
     load_path = get_load_path()
@@ -161,6 +194,7 @@ def full_scene_sim(scene_file='altscene.json'):
     #plates[0] = "Waiting"
 
     null_path = PathPlan(SE3(-0.5, 0, 0.5))
+    refill_path = get_refill_path()
     pos_table.append(null_path)
     traj_planner = RobotController(null_path, robot=UR5, swift_env=env, transform=robot_1_base)
     traj_planner_2 = RobotController(null_path, robot=GantryBot, swift_env=env,
@@ -173,7 +207,7 @@ def full_scene_sim(scene_file='altscene.json'):
     tool_offset2 = traj_planner_2.tool_offset
 
     # Place bricks and scene
-    items = [Prop('objects\\plate2', env, position, transform=far_far_away, color=(5, 5, 5)) for
+    items = [Prop('objects\\plate2', env, position, transform=far_far_away, color=(0, 100, 0)) for
              position in
              read_scene(scene_file)[0]]
 
@@ -285,6 +319,7 @@ def full_scene_sim(scene_file='altscene.json'):
                 traj_planner_2.run(pos_table[plate_id])
                 plates[plate_id] = "Moving"
                 p1_stop = True
+                #traj_planner.run(refill_path)
 
         if action_2['stop'] and p1_stop:
             plate_in_move = False
