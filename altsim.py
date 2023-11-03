@@ -36,9 +36,9 @@ def create_sim_env(env, master_transform=None):
     gate_len = 1.215  # Length of gate
 
     props = [
-        # Prop('objects\\Estop', env, transform=master_transform * table_offset * SE3(-1, 0.65, 2e-3), color=(100, 0, 0)),
+        #Prop('objects\\Estop', env, transform=master_transform * table_offset * SE3(-2, 0.65, 2e-3), color=(100, 0, 0)),
         Prop('objects\\TableEdited', env, transform=master_transform * table_offset * SE3(-1.5, 1.2, 0), color=(99, 71, 32)),
-        #Prop('objects\\extinguisher', env, transform=master_transform * SE3(-0.7, 1.35, 0), color=(102, 15, 13)),
+        Prop('objects\\extinguisher', env, transform=master_transform * SE3(-2, 1.35, 0), color=(102, 15, 13)),
         Prop('objects\\StorageEdited', env, transform=master_transform * SE3(-0.8, -0.5, 0.65) * SE3.Rz(pi / 2),color=(80, 60, 15)),
         Prop('objects\\printer', env, transform=master_transform * table_offset * SE3(0.3, -0.95, 0.02) * SE3.Rz(pi),color=(0, 0, 1)),
         Prop('objects\\HolderEdited', env, is_stl=False, transform=master_transform * table_offset * SE3(0.8, -0.95, 0) * SE3.Rz(pi)),
@@ -197,8 +197,10 @@ def full_scene_sim(scene_file='altscene.json'):
     plate_in_move = False
     p1_stop = False
 
-    estop_button = EStop(initial_pose=SE3(), use_physical_button=True)
+    estop_button = EStop(initial_pose=SE3(-1.3,0,0.65), use_physical_button=True)
     estop_button.add_to_env(env)
+    estop_button2 = EStop(initial_pose=SE3(0,-1,0.65))
+    estop_button2.add_to_env(env)
 
     while True:
         if estop_button.get_state():
