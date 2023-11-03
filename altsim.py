@@ -41,7 +41,7 @@ def create_sim_env(env, master_transform=None):
         #Prop('objects\\extinguisher', env, transform=master_transform * SE3(-0.7, 1.35, 0), color=(102, 15, 13)),
         Prop('objects\\StorageEdited', env, transform=master_transform * SE3(-0.5, -0.5, 0.65) * SE3.Rz(pi / 2),color=(80, 60, 15)),
         Prop('objects\\printer', env, transform=master_transform * table_offset * SE3(0.3, -0.95, 0.05) * SE3.Rz(pi),color=(0, 0, 1)),
-        Prop('objects\\HolderEdited', env, is_stl=False, transform=master_transform * table_offset * SE3(0.8, -0.95, 0) * SE3.Rz(pi)),
+        #Prop('objects\\HolderEdited', env, is_stl=False, transform=master_transform * table_offset * SE3(0.8, -0.95, 0) * SE3.Rz(pi)),
         Prop('objects\\FloorEdited', env, is_stl=False, transform=master_transform * table_offset * SE3(3, 2.5, -1) * SE3.Rz(pi/2), color = (100, 10, 10)),
         Prop('objects\\WallsEdited', env, is_stl=False, transform=master_transform * table_offset * SE3(3, 2.5, -1) * SE3.Rz(pi/2), color = (100, 10, 10))
 
@@ -142,6 +142,38 @@ def get_load_path():
     return path
 
 
+def get_refill_path():
+    origin = SE3(0, -0.5, 0.5) * SE3.Rz(pi / 2)
+    start_pos = SE3(0.2, -0.52, 0.1)
+    end_pos = SE3(0, -0.52, 0.1)
+    rot_start = SE3.Ry(90, unit="deg") * SE3.Rx(90, unit="deg") * SE3.Rz(90, unit="deg")
+
+    path = PathPlan(SE3(-0.5, 0, 0.5))
+    
+    pos = start_pos
+    path.add_path(pos * rot_start, "rpd")
+    pos *= SE3(0, 0, -0.3)
+    path.add_path(pos * rot_start, "m")
+    path.add_path(action="grb", obj_id=0)
+    pos *= SE3(0, 0, 0.3)
+    path.add_path(pos * rot_start, "m")
+
+    pos = end_pos
+    path.add_path(pos * rot_start, "rpd")
+    pos *= SE3(-0.3, 0, 0)
+    path.add_path(pos * rot_start, "m")
+    path.add_path(action="rel", obj_id=0)
+    pos *= SE3(0.6, 0, 0)
+    path.add_path(pos * rot_start, "m")
+
+    path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
+                   1.01747401e+00, 1.20284037e-06], "joint")
+    path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
+                   1.01747401e+00, 1.20284037e-06], "joint")
+
+    return path
+
+
 def full_scene_sim(scene_file='altscene.json'):
     # produce_path_plan(scene_file, show_matching=False, show_path=False, save='altplan.json')  # Optionally update path plan before starting
     env = swift.Swift()
@@ -162,6 +194,7 @@ def full_scene_sim(scene_file='altscene.json'):
     #plates[0] = "Waiting"
 
     null_path = PathPlan(SE3(-0.5, 0, 0.5))
+    refill_path = get_refill_path()
     pos_table.append(null_path)
     traj_planner = RobotController(null_path, robot=UR5, swift_env=env, transform=robot_1_base)
     traj_planner_2 = RobotController(null_path, robot=GantryBot, swift_env=env,
@@ -284,7 +317,7 @@ def full_scene_sim(scene_file='altscene.json'):
                 traj_planner_2.run(pos_table[plate_id])
                 plates[plate_id] = "Moving"
                 p1_stop = True
-                #traj_planner.run(refill)
+                #traj_planner.run(refill_path)
 
         if action_2['stop'] and p1_stop:
             plate_in_move = False
