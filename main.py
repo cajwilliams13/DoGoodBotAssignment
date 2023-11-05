@@ -63,7 +63,7 @@ def create_sim_env(env, master_transform=None):
 def get_reposition_table() -> list[PathPlan]:
     """List of paths that move a plate from zone 1 to zones 2 - 8"""
     zone_drop_locations = [SE3(-0.1, 0.1, 0), SE3(-0.1, -0.2, 0), SE3(-0.1, -0.5, 0),
-               SE3(-0.1, 0.4, 0.26), SE3(-0.1, 0.1, 0.26), SE3(-0.1, -0.2, 0.26), SE3(-0.1, -0.5, 0.26)]
+                           SE3(-0.1, 0.4, 0.26), SE3(-0.1, 0.1, 0.26), SE3(-0.1, -0.2, 0.26), SE3(-0.1, -0.5, 0.26)]
     # Global correction factors
     robot_correction_factor = SE3(0.1, 0, 0.24)
     rotation_correction = SE3.Ry(-90, unit="deg") * SE3.Rz(-90, unit="deg")
@@ -154,7 +154,6 @@ def get_load_path() -> PathPlan:
 
 
 def full_scene_sim(scene_file='altscene.json'):
-    # produce_path_plan(scene_file, show_matching=False, show_path=False, save='altplan.json')  # Optionally update path plan before starting
     env = swift.Swift()
     env.launch(realtime=True)
 
@@ -171,7 +170,6 @@ def full_scene_sim(scene_file='altscene.json'):
     load_path = get_load_path()
 
     plates = ["Absent" for _ in range(8)]
-    #plates[0] = "Waiting"
 
     null_path = PathPlan(SE3(-0.5, 0, 0.5))
     pos_table.append(null_path)
@@ -179,8 +177,6 @@ def full_scene_sim(scene_file='altscene.json'):
     traj_planner_2 = RobotController(null_path, robot=GantryBot, swift_env=env,
                                      transform=scene_offset * SE3(-0.7, 0, 0.65) * SE3.Rz(180, unit="deg"),
                                      gripper=Gripper2)
-    # traj_planner_2 = RobotController(null_path, robot=UR5, swift_env=env,
-    #                                 transform=robot_1_base * SE3(-0.1, 0, 0))
     # Tool offset needed for brick manipulation
     tool_offset = traj_planner.tool_offset
     tool_offset2 = traj_planner_2.tool_offset
@@ -190,9 +186,7 @@ def full_scene_sim(scene_file='altscene.json'):
              position in
              read_scene(scene_file)[0]]
 
-    # time.sleep(10)
-
-    robot_can_move = [False]
+    robot_can_move = [False]  # These are wrapped in a single index list to force pass-by referencee
     obstructions = [False for _ in range(8)]
     obstructors = [Prop("objects\\dot", env, transform=far_far_away) for _ in obstructions]
     obs_locations = [[-0.55, -0.15, 0.24], [-0.55, 0.15, 0.24], [-0.55, 0.4, 0.24],
@@ -208,11 +202,12 @@ def full_scene_sim(scene_file='altscene.json'):
     held_id = None
     held_id_2 = None
     plate_in_move = False
+    plate_id = 0
     p1_stop = False
 
-    estop_button = EStop(initial_pose=SE3(-1.3,0,0.65), use_physical_button=True)
+    estop_button = EStop(initial_pose=SE3(-1.3, 0, 0.65), use_physical_button=True)
     estop_button.add_to_env(env)
-    estop_button2 = EStop(initial_pose=SE3(0,-1,0.65))
+    estop_button2 = EStop(initial_pose=SE3(0, -1, 0.65))
     estop_button2.add_to_env(env)
 
     while True:
@@ -257,7 +252,6 @@ def full_scene_sim(scene_file='altscene.json'):
                 elif p == "Obstructed":
                     if not obstructions[i]:
                         plates[i] = "Absent"
-            # print(plates)
 
         action_1 = traj_planner.simulation_step(not robot_can_move[0])
         action_2 = traj_planner_2.simulation_step(not robot_can_move[0])
@@ -287,7 +281,6 @@ def full_scene_sim(scene_file='altscene.json'):
             held_id_2 = None
 
         env.step(0.01)
-        # env.step(0)
 
         if action_1['stop'] and plate_in_move:
             if obstructions[plate_id]:
@@ -298,7 +291,6 @@ def full_scene_sim(scene_file='altscene.json'):
                 traj_planner_2.run(pos_table[plate_id])
                 plates[plate_id] = "Moving"
                 p1_stop = True
-                #traj_planner.run(refill_path)
 
         if action_2['stop'] and p1_stop:
             plate_in_move = False
@@ -308,4 +300,3 @@ def full_scene_sim(scene_file='altscene.json'):
 
 if __name__ == '__main__':
     full_scene_sim()
-    # full_scene_sim('extrabrick.json')
