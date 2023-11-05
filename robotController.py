@@ -1,13 +1,9 @@
-import json
-import time
 from math import pi
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.linalg as lin
 import roboticstoolbox as rtb
-import roslibpy
 import spatialmath
 
 from ir_support import UR5
@@ -17,7 +13,6 @@ from spatialmath import SE3
 from tqdm import tqdm
 
 from Gripper.Gripper import Gripper
-from myUtils import safe_write_to_file
 
 
 class RobotController:
@@ -25,17 +20,10 @@ class RobotController:
 
     def __init__(self, move_list, swift_env=None, transform=None, robot=None, gripper=None):
         self.path = move_list
-        # self.path.test()  # Just in case
         self.end_effector_pos = self.path.start_pos
 
         self.instruction_index = 0
         self.current_trajectory = None
-
-        # Perform sanity checks on the position
-        if lin.norm(np.array([a[3] for a in self.end_effector_pos.A[:3]])) < 50e-3:
-            # Robot end effector is likely too close to the origin
-            pass
-            #raise ValueError("Robot start position is too close to the origin")
 
         self.base_offset = transform if transform is not None else SE3()
 
@@ -49,7 +37,6 @@ class RobotController:
         else:
             self.gripper_base_offset = self.arm.gripper_base_offset
             self.tool_offset = self.arm.tool_offset
-            #self.debug = True
 
         self.inv_tool_offset = SE3(np.linalg.inv(self.tool_offset.A))
 
@@ -69,7 +56,6 @@ class RobotController:
             for i in range(len(self.arm.links)):
                 self.arm.links[i].qlim = [-pi, pi]
             self.debug = True
-
 
             self.arm.links[1].qlim = [-pi, 0]
             self.arm.links[4].qlim = [0, pi]
@@ -96,7 +82,7 @@ class RobotController:
 
         if ik_result[1] != 1:
             pass
-            #print(f"Warning: Failed rapid IK search: {ik_result}")
+            # print(f"Warning: Failed rapid IK search: {ik_result}")
 
         self._check_ik_tolerance(ik_result, end)
 
@@ -141,10 +127,9 @@ class RobotController:
         """Get the next trajectory from path"""
         if not self.path.path_points:
             return False
-            raise ValueError("No points available in the path")
 
-        #print(f"Running path: {self.instruction_index + 1}/{len(self.path.path_points)}, "
-        #      f"{round((self.instruction_index + 1)/len(self.path.path_points) * 100):>3}%")
+        print(f"Running path: {self.instruction_index + 1}/{len(self.path.path_points)}, "
+              f"{round((self.instruction_index + 1)/len(self.path.path_points) * 100):>3}%")
 
         self.current_trajectory = {'joints': None}
         if self.instruction_index + 1 == len(self.path.path_points):
@@ -157,7 +142,7 @@ class RobotController:
         if next_instr['action'] in ['m', 'rpd']:  # Instruction is a movement command
             end = next_instr['point']
             self.current_trajectory['joints'] = self.get_trajectory(end, rapid=next_instr['action'] == 'rpd')
-            #print(f"Moving to transform:\n{end}")
+            # print(f"Moving to transform:\n{end}")
             return True
         if next_instr['action'] == "joint":
             end = next_instr["point"]
@@ -169,13 +154,13 @@ class RobotController:
             self.current_trajectory['grip'] = next_instr['id']
             self.current_trajectory['gripper'] = np.linspace(self.gripper.open, self.gripper.close,
                                                              self.step_count)[:].tolist()
-            #print("Picking up")
+            print("Picking up")
 
         elif next_instr['action'] == 'rel':
             self.current_trajectory['release'] = next_instr['id']
             self.current_trajectory['gripper'] = np.linspace(self.gripper.close, self.gripper.open,
                                                              self.step_count)[:].tolist()
-            #print("Dropping")
+            print("Dropping")
 
         # Arm shouldn't move while gripper is moving. Although it absolutely can if needed
         self.current_trajectory['joints'] = [[*self.arm.q.tolist()] for _ in self.current_trajectory['gripper']]
@@ -188,12 +173,13 @@ class RobotController:
         # Use Newton Raphson since it accepts joint limit constraints
         return self.arm.ik_NR(t, q0=q0, joint_limits=True, slimit=100)
 
-    def tr2delta(self,  T1, T2):
+    @staticmethod
+    def tr2delta(t1, t2):
         # Calculate translational difference
-        trans = T2.t - T1.t
+        trans = t2.t - t1.t
 
         # Calculate rotational difference
-        R_diff = T1.R.T @ T2.R
+        R_diff = t1.R.T @ t2.R
         angle, axis = spatialmath.SO3(R_diff).angvec()
 
         # Convert rotational difference to angular velocity
@@ -233,14 +219,14 @@ class RobotController:
         except ValueError:
             print('Math error in rmrc')
             joint_states = self._get_rapid_trajectory(self.arm.q, end)
-            
+
         return joint_states
-    
+
     def _check_ik_tolerance(self, ik_result, target):
         ee_error = self.arm.fkine(ik_result[0]).t - target.t
         if any(5e-3 < ee_error):
             pass
-            #print(f"Warning: IK tolerance above limit: {ee_error}")
+            # print(f"Warning: IK tolerance above limit: {ee_error}")
 
     def _interpolate_joints(self, j_start, j_end, count=None):
         count = self.interp_count if count is None else count
@@ -255,8 +241,8 @@ class RobotController:
             self._process_current_step(estop=False)
             self.swift_env.step(0.01)
 
-        #print(f"Robot is expected to be at: \n{(self.base_offset * transform * self.inv_tool_offset).A}")
-        #print(f"Robot is actually at: \n{self.arm.fkine(self.arm.q).A}")
+        # print(f"Robot is expected to be at: \n{(self.base_offset * transform * self.inv_tool_offset).A}")
+        # print(f"Robot is actually at: \n{self.arm.fkine(self.arm.q).A}")
         self.swift_env.hold()
 
     # ----------- Sims and plots -----------
@@ -281,7 +267,7 @@ class RobotController:
         joint_configs = np.stack(grids, axis=-1).reshape(-1, len(self.arm.links))
 
         # Calculate forward kinematics for each joint configuration
-        #print(f"Calculating Fkine on {len(joint_configs)} points")
+        # print(f"Calculating Fkine on {len(joint_configs)} points")
         transforms = np.array([self.arm.fkine(q=r).t.T for r in joint_configs])
         transforms = transforms[transforms[:, 2] >= z_threshold]  # Filter for z height
 
@@ -311,11 +297,11 @@ class RobotController:
             for i, t in tqdm(enumerate(transforms), desc='Plotting objects', total=len(transforms)):
                 Prop('objects\\dot', self.swift_env, position=[*t, 0], color=(0, 0, 255))
 
-        #print(f"Robot reaches dimensions:")
+        # print(f"Robot reaches dimensions:")
         for dim, mi, ma in zip(['x', 'y', 'z'], [x_min, y_min, z_min], [x_max, y_max, z_max]):
             pass
-            #print(f"  {dim}: {eng_unit(mi, 'm')} : {eng_unit(ma, 'm')}")
-        #print(f"And explores a volume ~ {eng_unit((x_max - x_min) * (y_max - y_min) * (z_max - z_min), 'm3')}")
+            # print(f"  {dim}: {eng_unit(mi, 'm')} : {eng_unit(ma, 'm')}")
+        # print(f"And explores a volume ~ {eng_unit((x_max - x_min) * (y_max - y_min) * (z_max - z_min), 'm3')}")
 
     def simulation_step(self, estop):
         """Simulate next action in env"""
@@ -347,7 +333,7 @@ class RobotController:
             self.gripper.setq(gripper_val)  # Must run to update base position
             if self.debug:
                 pass
-                #Prop('objects\\dot', self.swift_env, transform=self.gripper.base)
+                # Prop('objects\\dot', self.swift_env, transform=self.gripper.base)
             self.arm.q = current_step[:]
             action = {
                 'stop': False,
@@ -359,7 +345,7 @@ class RobotController:
     def tweak(self, joint, dist):
         if self.instruction_index != len(self.path.path_points) - 1:
             return
-        
+
         q = self.arm.q
         q[joint] += dist / 180 * pi
         self.arm.q = q
