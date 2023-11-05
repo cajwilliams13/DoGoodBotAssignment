@@ -123,8 +123,8 @@ class RobotController:
         if not self.path.path_points:
             return False
 
-        print(f"Running path: {self.instruction_index + 1}/{len(self.path.path_points)}, "
-              f"{round((self.instruction_index + 1)/len(self.path.path_points) * 100):>3}%")
+        #print(f"Running path: {self.instruction_index + 1}/{len(self.path.path_points)}, "
+        #      f"{round((self.instruction_index + 1)/len(self.path.path_points) * 100):>3}%")
 
         self.current_trajectory = {'joints': None}
         if self.instruction_index + 1 == len(self.path.path_points):
