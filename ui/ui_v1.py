@@ -2,10 +2,12 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from threading import Thread
 
+
 class RobotControlGUI(tk.Tk):
     def __init__(self, r1=None, r2=None, plates=None, robot_can_move=None, obstructions=None):
         super().__init__()
 
+        # Capture shared variables
         self.robot_1 = r1
         self.robot_2 = r2
         self.plates = plates
@@ -14,7 +16,7 @@ class RobotControlGUI(tk.Tk):
 
         self.title("Robot Control Interface")
         self.estop_active = True
-        
+
         # Create frame for Production cell control
         prod_cell_frame = ttk.LabelFrame(self, text="Production Cell Control")
         prod_cell_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
@@ -34,12 +36,10 @@ class RobotControlGUI(tk.Tk):
         self.printer_plate_frame.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
         self.create_printer_plate_controls()
 
-        self.axis_vals = {}
-        self.rot_vals = {}
-
     def create_robot_interface(self):
         self.create_joint_controls("Robot Joint Control 1", 1, 6, 1, 0)
         self.create_joint_controls("Robot Joint Control 2", 2, 3, 2, 0)
+
         # Disable robot control panels if E-STOP is pressed
         if self.estop_active:
             self.disable_controls()
@@ -49,22 +49,27 @@ class RobotControlGUI(tk.Tk):
         joint_frame.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
 
         for i in range(joints):
-            ttk.Label(joint_frame, text=f"Joint {i+1}:").grid(row=i, column=0, padx=5, pady=5)
-            ttk.Button(joint_frame, text="+", command=lambda i=i: self.move_joint(robot_num, i, "+")).grid(row=i, column=2, padx=5, pady=5)
-            ttk.Button(joint_frame, text="-", command=lambda i=i: self.move_joint(robot_num, i, "-")).grid(row=i, column=3, padx=5, pady=5)
+            ttk.Label(joint_frame, text=f"Joint {i + 1}:").grid(row=i, column=0, padx=5, pady=5)
+            ttk.Button(joint_frame, text="+", command=lambda q=i:
+                                    self.move_joint(robot_num, q, "+")).grid(row=i, column=2, padx=5, pady=5)
+
+            ttk.Button(joint_frame, text="-", command=lambda q=i:
+                                    self.move_joint(robot_num, q, "-")).grid(row=i, column=3, padx=5, pady=5)
 
     def create_robot_frame(self, title, joints, col, row, joint_values_list):
         robot_frame = ttk.LabelFrame(self, text=title)
         robot_frame.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
 
         for i in range(joints):
-            ttk.Label(robot_frame, text=f"Joint {i+1}").grid(row=i, column=0, padx=5, pady=5)
+            ttk.Label(robot_frame, text=f"Joint {i + 1}").grid(row=i, column=0, padx=5, pady=5)
             ttk.Label(robot_frame, textvariable=joint_values_list[i]).grid(row=i, column=1, padx=5, pady=5)
-            ttk.Button(robot_frame, text="+", command=lambda i=i: self.move_joint(i, "+", joint_values_list)).grid(row=i, column=2, padx=5, pady=5)
-            ttk.Button(robot_frame, text="-", command=lambda i=i: self.move_joint(i, "-", joint_values_list)).grid(row=i, column=3, padx=5, pady=5)
+            ttk.Button(robot_frame, text="+", command=lambda q=i: self.move_joint(q, "+", joint_values_list)).grid(
+                row=i, column=2, padx=5, pady=5)
+            ttk.Button(robot_frame, text="-", command=lambda q=i: self.move_joint(q, "-", joint_values_list)).grid(
+                row=i, column=3, padx=5, pady=5)
 
-    def move_joint(self, id, joint, direction):
-        r = self.robot_1 if id == 1 else self.robot_2
+    def move_joint(self, joint_id, joint, direction):
+        r = self.robot_1 if joint_id == 1 else self.robot_2
 
         if direction == "+":
             r.tweak(joint, 5)
@@ -79,6 +84,7 @@ class RobotControlGUI(tk.Tk):
 
     def disable_controls(self):
         for child in self.winfo_children():
+            # Do not disable the estop button :P
             if isinstance(child, ttk.LabelFrame) and "Production Cell Control" not in child.cget("text"):
                 for widget in child.winfo_children():
                     widget.configure(state=tk.DISABLED)
@@ -88,6 +94,8 @@ class RobotControlGUI(tk.Tk):
             self.estop_active = False
             self.estop_btn.config(text="E-STOP")
             self.start_btn.config(state=tk.NORMAL)
+
+            # Enable all children nodes
             for child in self.winfo_children():
                 if isinstance(child, ttk.LabelFrame):
                     for widget in child.winfo_children():
@@ -104,22 +112,24 @@ class RobotControlGUI(tk.Tk):
 
         for i in range(8):
             ttk.Label(printer_frame, text=f"Plate {i + 1}:").grid(row=i, column=0, padx=5, pady=5)
-            ttk.Button(printer_frame, text="Spawn", command=lambda i=i: self.spawn_plate(i)).grid(row=i, column=1,
+            ttk.Button(printer_frame, text="Spawn", command=lambda q=i: self.spawn_plate(q)).grid(row=i, column=1,
                                                                                                   padx=5, pady=5)
-            ttk.Button(printer_frame, text="Remove", command=lambda i=i: self.remove_plate(i)).grid(row=i, column=2,
+
+            ttk.Button(printer_frame, text="Remove", command=lambda q=i: self.remove_plate(q)).grid(row=i, column=2,
                                                                                                     padx=5, pady=5)
-            ttk.Button(printer_frame, text="Obstruct", command=lambda i=i: self.obstruct_cell(i)).grid(row=i, column=3,
-                                                                                                      padx=5, pady=5)
+
+            ttk.Button(printer_frame, text="Obstruct", command=lambda q=i: self.obstruct_cell(q)).grid(row=i, column=3,
+                                                                                                       padx=5, pady=5)
 
     def spawn_plate(self, plate_id):
-        print(f"Spawn plate {plate_id + 1}")  # replace with the actual function
+        print(f"Spawn plate {plate_id + 1}")
         if not any([p == "Waiting" for p in self.plates[plate_id]]):
             self.plates[plate_id] = "Waiting"
         else:
             print("Plate already waiting")
 
     def remove_plate(self, plate_id):
-        print(f"Remove plate {plate_id + 1}")  # replace with the actual function
+        print(f"Remove plate {plate_id + 1}")
         self.plates[plate_id] = "Absent"
 
     def obstruct_cell(self, cell_id):
@@ -127,8 +137,8 @@ class RobotControlGUI(tk.Tk):
         print(self.obstructions)
 
 
-def run_gui_in_thread(**kargs):
-    app = RobotControlGUI(**kargs)
+def run_gui_in_thread(**kwargs):
+    app = RobotControlGUI(**kwargs)
     app.mainloop()
 
 
