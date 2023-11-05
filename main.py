@@ -61,63 +61,75 @@ def create_sim_env(env, master_transform=None):
     return props
 
 
-def get_reposition_table():
-    correction = SE3(0.1, 0, 0.24)
-    origin = SE3(0.1, 0, 0) * correction
-    start_pos = SE3(0, 0.4, 0) * correction
-    rot_correct = SE3.Ry(-90, unit="deg") * SE3.Rz(-90, unit="deg")
+def get_reposition_table() -> list[PathPlan]:
+    """List of paths that move a plate from zone 1 to zones 2 - 8"""
+    zone_drop_locations = [SE3(-0.1, 0.1, 0), SE3(-0.1, -0.2, 0), SE3(-0.1, -0.5, 0),
+               SE3(-0.1, 0.4, 0.26), SE3(-0.1, 0.1, 0.26), SE3(-0.1, -0.2, 0.26), SE3(-0.1, -0.5, 0.26)]
+    # Global correction factors
+    robot_correction_factor = SE3(0.1, 0, 0.24)
+    rotation_correction = SE3.Ry(-90, unit="deg") * SE3.Rz(-90, unit="deg")
+
+    # Points of interest
+    origin = SE3(0.1, 0, 0) * robot_correction_factor
+    start_pos = SE3(0, 0.4, 0) * robot_correction_factor
+
+    # Pickup and drop vectors
     move_out_offset = SE3(-0.2, 0, 0)
     move_in_offset = SE3(0.1, 0, 0)
-    targets = [SE3(-0.1, 0.1, 0), SE3(-0.1, -0.2, 0), SE3(-0.1, -0.5, 0),
-               SE3(-0.1, 0.4, 0.26), SE3(-0.1, 0.1, 0.26), SE3(-0.1, -0.2, 0.26), SE3(-0.1, -0.5, 0.26)]
 
-    targets = [t * correction for t in targets]
+    zone_drop_locations = [t * robot_correction_factor for t in zone_drop_locations]
 
     paths = []
-    for t in targets:
+    for location in zone_drop_locations:
         path = PathPlan()
         pos = SE3()
 
         pos *= origin
-        path.add_path(pos * rot_correct, "m")
+        path.add_path(pos * rotation_correction, "m")
+
+        # Pick up the plate
         pos = start_pos
-        path.add_path(pos * rot_correct, "m")
+        path.add_path(pos * rotation_correction, "m")
         pos *= move_in_offset
-        path.add_path(pos * rot_correct, "m")
+        path.add_path(pos * rotation_correction, "m")
         path.add_path(action="grb", obj_id=0)
         pos *= move_out_offset
-        path.add_path(pos * rot_correct, "m")
+        path.add_path(pos * rotation_correction, "m")
 
-        pos = t
-        path.add_path(pos * rot_correct, "m")
+        # Deliver the plate
+        pos = location
+        path.add_path(pos * rotation_correction, "m")
         pos *= move_in_offset
         pos *= move_in_offset
-        path.add_path(pos * rot_correct, "m")
+        path.add_path(pos * rotation_correction, "m")
         path.add_path(action="rel", obj_id=0)
         pos *= move_out_offset
-        path.add_path(pos * rot_correct, "m")
+        path.add_path(pos * rotation_correction, "m")
+
         pos = origin
-        path.add_path(pos * rot_correct, "m")
+        path.add_path(pos * rotation_correction, "m")
 
         paths.append(path)
 
     return paths
 
 
-def get_load_path():
-    origin = SE3(0, -0.5, 0.5) * SE3.Rz(pi / 2)
-    start_pos = SE3(0, -0.52, 0.1)
-    end_pos = SE3(-0.56, -0.4, 0.24)
+def get_load_path() -> PathPlan:
+    """Produce a path from the printer to zone 1"""
+    pickup_pos = SE3(0, -0.52, 0.1)
+    zone_drop_pos = SE3(-0.56, -0.4, 0.24)
     rot_start = SE3.Ry(90, unit="deg") * SE3.Rx(90, unit="deg") * SE3.Rz(90, unit="deg")
     rot_end = SE3.Ry(-90, unit="deg") * SE3.Rz(-90, unit="deg")
 
     path = PathPlan(SE3(-0.5, 0, 0.5))
 
     path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
-                   1.01747401e+00, 1.20284037e-06], "joint")
+                   1.01747401e+00, 1.20284037e-06], "joint")  # Force arm to stable location before each cycle
     path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
                    1.01747401e+00, 1.20284037e-06], "joint")
-    pos = start_pos
+
+    # Pick up at printer
+    pos = pickup_pos
     path.add_path(pos * rot_start, "rpd")
     pos *= SE3(0, -0.3, 0)
     path.add_path(pos * rot_start, "m")
@@ -125,7 +137,8 @@ def get_load_path():
     pos *= SE3(0, 0.3, 0)
     path.add_path(pos * rot_start, "m")
 
-    pos = end_pos
+    # Drop off at zone 1
+    pos = zone_drop_pos
     path.add_path(pos * rot_end, "rpd")
     pos *= SE3(-0.3, 0, 0)
     path.add_path(pos * rot_end, "m")
@@ -134,39 +147,7 @@ def get_load_path():
     path.add_path(pos * rot_end, "m")
 
     path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
-                   1.01747401e+00, 1.20284037e-06], "joint")
-    path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
-                   1.01747401e+00, 1.20284037e-06], "joint")
-
-    return path
-
-
-def get_refill_path():
-    origin = SE3(0, -0.5, 0.5) * SE3.Rz(pi / 2)
-    start_pos = SE3(0.2, -0.52, 0.1)
-    end_pos = SE3(0, -0.52, 0.1)
-    rot_start = SE3.Ry(90, unit="deg") * SE3.Rx(90, unit="deg") * SE3.Rz(90, unit="deg")
-
-    path = PathPlan(SE3(-0.5, 0, 0.5))
-    
-    pos = start_pos
-    path.add_path(pos * rot_start, "rpd")
-    pos *= SE3(0, 0, -0.3)
-    path.add_path(pos * rot_start, "m")
-    path.add_path(action="grb", obj_id=0)
-    pos *= SE3(0, 0, 0.3)
-    path.add_path(pos * rot_start, "m")
-
-    pos = end_pos
-    path.add_path(pos * rot_start, "rpd")
-    pos *= SE3(-0.3, 0, 0)
-    path.add_path(pos * rot_start, "m")
-    path.add_path(action="rel", obj_id=0)
-    pos *= SE3(0.6, 0, 0)
-    path.add_path(pos * rot_start, "m")
-
-    path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
-                   1.01747401e+00, 1.20284037e-06], "joint")
+                   1.01747401e+00, 1.20284037e-06], "joint")  # Force arm to stable location after each cycle
     path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
                    1.01747401e+00, 1.20284037e-06], "joint")
 
@@ -187,13 +168,13 @@ def full_scene_sim(scene_file='altscene.json'):
     robot_1_base = scene_offset * SE3(0.3, 0, 0.65)
 
     pos_table = get_reposition_table()
+
     load_path = get_load_path()
 
     plates = ["Absent" for _ in range(8)]
     #plates[0] = "Waiting"
 
     null_path = PathPlan(SE3(-0.5, 0, 0.5))
-    refill_path = get_refill_path()
     pos_table.append(null_path)
     traj_planner = RobotController(null_path, robot=UR5, swift_env=env, transform=robot_1_base)
     traj_planner_2 = RobotController(null_path, robot=GantryBot, swift_env=env,
