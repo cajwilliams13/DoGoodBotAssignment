@@ -16,11 +16,6 @@ from robotController import RobotController
 from ui_v1 import run_gui_in_thread
 
 
-# Arm control from ui -> Override joint values
-# Blocks in the cubbies
-# Printer plate spawn issue
-# Arm uses bake to run
-
 def create_sim_env(env, master_transform=None):
     """
     Create simulation environment.
@@ -42,8 +37,8 @@ def create_sim_env(env, master_transform=None):
         Prop('objects\\StorageEdited', env, transform=master_transform * SE3(-0.5, -0.5, 0.65) * SE3.Rz(pi / 2),color=(80, 60, 15)),
         Prop('objects\\printer', env, transform=master_transform * table_offset * SE3(0.3, -0.95, 0.02) * SE3.Rz(pi),color=(0, 0, 1)),
         #Prop('objects\\HolderEdited', env, is_stl=False, transform=master_transform * table_offset * SE3(0.8, -0.95, 0) * SE3.Rz(pi)),
-        Prop('objects\\FloorEdited', env, is_stl=False, transform=master_transform * table_offset * SE3(3, 2.5, -1) * SE3.Rz(pi/2), color = (100, 10, 10)),
-        Prop('objects\\WallsEdited', env, is_stl=False, transform=master_transform * table_offset * SE3(3, 2.5, -1) * SE3.Rz(pi/2), color = (100, 10, 10)),
+        Prop('objects\\FloorEdited', env, transform=master_transform * table_offset * SE3(3, 2.5, -1) * SE3.Rz(pi/2), color = (100, 10, 10)),
+        Prop('objects\\WallsEdited', env, transform=master_transform * table_offset * SE3(3, 2.5, -1) * SE3.Rz(pi/2), color = (10, 10, 100)),
         Prop('objects\\OverheadLightEdited', env, transform=master_transform * table_offset * SE3(0.2, -0.1, 1.5), color=(200, 200, 200)),
         Prop('objects\\OverheadLightEdited', env, transform=master_transform * table_offset * SE3(1, -0.1, 1.5), color=(200, 200, 200)),
         Prop('objects\\OverheadLightEdited', env, transform=master_transform * table_offset * SE3(-3, -0.1, 1.5), color=(200, 200, 200)),
