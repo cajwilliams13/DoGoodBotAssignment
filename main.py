@@ -1,5 +1,3 @@
-import json
-import time
 from math import pi
 from threading import Thread
 
@@ -13,7 +11,7 @@ from Gripper2.Gripper2 import Gripper2
 from pathplanner import PathPlan, read_scene
 from props import Prop
 from robotController import RobotController
-from ui_v1 import run_gui_in_thread
+from ui.ui_v1 import run_gui_in_thread
 
 
 def create_sim_env(env, master_transform=None):
