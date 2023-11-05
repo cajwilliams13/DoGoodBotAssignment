@@ -1,14 +1,16 @@
-import swift
+from math import pi
+
 import roboticstoolbox as rtb
+import spatialgeometry as geometry
+import swift
+from ir_support import UR5
+from spatialmath import SE3
+
 from robotcore.GantryBot.GantryBot import GantryBot
 from robotcore.Gripper.Gripper import Gripper
-from spatialmath import SE3
-from ir_support import UR5
-from math import pi
-import spatialgeometry as geometry
 
 
-def CreateEnvironment(env, transform=None):
+def create_environment(env, transform=None):
     env.launch(realtime = True)
     #Add Everything to environment
     
@@ -42,7 +44,7 @@ def CreateEnvironment(env, transform=None):
 if __name__ == '__main__':
     env = swift.Swift()
     transform = SE3(0,0,0)
-    UR5Bot, UR5q, GanBot, Ganq = CreateEnvironment(env, transform)
+    UR5Bot, UR5q, GanBot, Ganq = create_environment(env, transform)
     
     #GanBot.teach(GanBot.q)
     #GanBot.test()
