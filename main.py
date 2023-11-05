@@ -30,19 +30,19 @@ def create_sim_env(env, master_transform=None):
 
     props = [
         #Prop('objects\\Estop', env, transform=master_transform * table_offset * SE3(-2, 0.65, 2e-3), color=(100, 0, 0)),
-        Prop('objects\\TableEdited', env, transform=master_transform * table_offset * SE3(-1.5, 1.2, 0), color=(99, 71, 32)),
+        Prop('objects\\Table', env, transform=master_transform * table_offset * SE3(-1.5, 1.2, 0), color=(99, 71, 32)),
         Prop('objects\\extinguisher', env, transform=master_transform * SE3(-2, 1.35, 0), color=(102, 15, 13)),
-        Prop('objects\\StorageEdited', env, transform=master_transform * SE3(-0.5, -0.5, 0.65) * SE3.Rz(pi / 2),color=(80, 60, 15)),
+        Prop('objects\\Storage', env, transform=master_transform * SE3(-0.5, -0.5, 0.65) * SE3.Rz(pi / 2),color=(80, 60, 15)),
         Prop('objects\\printer', env, transform=master_transform * table_offset * SE3(0.3, -0.95, 0.02) * SE3.Rz(pi),color=(0, 0, 1)),
-        #Prop('objects\\HolderEdited', env, is_stl=False, transform=master_transform * table_offset * SE3(0.8, -0.95, 0) * SE3.Rz(pi)),
-        Prop('objects\\FloorEdited', env, transform=master_transform * table_offset * SE3(3, 2.5, -1) * SE3.Rz(pi/2), color = (100, 10, 10)),
-        Prop('objects\\WallsEdited', env, transform=master_transform * table_offset * SE3(3, 2.5, -1) * SE3.Rz(pi/2), color = (10, 10, 100)),
-        Prop('objects\\OverheadLightEdited', env, transform=master_transform * table_offset * SE3(0.2, -0.1, 1.5), color=(200, 200, 200)),
-        Prop('objects\\OverheadLightEdited', env, transform=master_transform * table_offset * SE3(1, -0.1, 1.5), color=(200, 200, 200)),
-        Prop('objects\\OverheadLightEdited', env, transform=master_transform * table_offset * SE3(-3, -0.1, 1.5), color=(200, 200, 200)),
-        Prop('objects\\WarningSignEdited', env, transform=master_transform * table_offset * SE3(-1.53, 1.5, 0.65) * SE3.Rz(-pi/2) * SE3.Rx(pi/2), color=(200, 50, 50)),
-        Prop('objects\\LightCurtainEdited', env, transform=master_transform * table_offset * SE3(-1.53, 1.15, -0.7) * SE3.Rz(-pi / 2), color=(200, 50, 50)),
-        Prop('objects\\LightCurtainEdited', env, transform=master_transform * table_offset * SE3(-1.53, -1.15, -0.7) * SE3.Rz(-pi / 2), color=(200, 50, 50)),
+        #Prop('objects\\Holder', env, is_stl=False, transform=master_transform * table_offset * SE3(0.8, -0.95, 0) * SE3.Rz(pi)),
+        Prop('objects\\Floor', env, transform=master_transform * table_offset * SE3(3, 2.5, -1) * SE3.Rz(pi/2), color = (100, 10, 10)),
+        Prop('objects\\Walls', env, transform=master_transform * table_offset * SE3(3, 2.5, -1) * SE3.Rz(pi/2), color = (10, 10, 100)),
+        Prop('objects\\OverheadLight', env, transform=master_transform * table_offset * SE3(0.2, -0.1, 1.5), color=(200, 200, 200)),
+        Prop('objects\\OverheadLight', env, transform=master_transform * table_offset * SE3(1, -0.1, 1.5), color=(200, 200, 200)),
+        Prop('objects\\OverheadLight', env, transform=master_transform * table_offset * SE3(-3, -0.1, 1.5), color=(200, 200, 200)),
+        Prop('objects\\WarningSign', env, transform=master_transform * table_offset * SE3(-1.53, 1.5, 0.65) * SE3.Rz(-pi/2) * SE3.Rx(pi/2), color=(200, 50, 50)),
+        Prop('objects\\LightCurtain', env, transform=master_transform * table_offset * SE3(-1.53, 1.15, -0.7) * SE3.Rz(-pi / 2), color=(200, 50, 50)),
+        Prop('objects\\LightCurtain', env, transform=master_transform * table_offset * SE3(-1.53, -1.15, -0.7) * SE3.Rz(-pi / 2), color=(200, 50, 50)),
 
     ]
 
@@ -206,7 +206,7 @@ def full_scene_sim(scene_file='altscene.json'):
     tool_offset2 = traj_planner_2.tool_offset
 
     # Place bricks and scene
-    items = [Prop('objects\\plate2', env, position, transform=far_far_away, color=(0, 100, 0)) for
+    items = [Prop('objects\\plateWithObj', env, position, transform=far_far_away, color=(0, 100, 0)) for
              position in
              read_scene(scene_file)[0]]
 
