@@ -1,3 +1,1 @@
-This is a readme!
-
-This is more readme info!
+Please use altsim.py for running the main simulations
