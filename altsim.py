@@ -16,11 +16,6 @@ from robotController import RobotController
 from ui_v1 import run_gui_in_thread
 
 
-# Arm control from ui -> Override joint values
-# Blocks in the cubbies
-# Printer plate spawn issue
-# Arm uses bake to run
-
 def create_sim_env(env, master_transform=None):
     """
     Create simulation environment.
@@ -36,23 +31,25 @@ def create_sim_env(env, master_transform=None):
     gate_len = 1.215  # Length of gate
 
     props = [
-        # Prop('objects\\Estop', env, transform=master_transform * table_offset * SE3(-1, 0.65, 2e-3), color=(100, 0, 0)),
-        Prop('objects\\Pallet_table', env, transform=master_transform * table_offset * SE3(0, -0.25, 0),
-             color=(99, 71, 32)),
-        # Prop('objects\\Pallet_table', env, is_stl=True, transform=master_transform * table_offset * SE3(0, -0.25, 0)),
-        Prop('objects\\extinguisher', env, transform=master_transform * SE3(-0.7, 1.35, 0), color=(102, 15, 13)),
-        Prop('objects\\store', env, transform=master_transform * SE3(0, 0, 0.45) * SE3.Rz(pi / 2) * SE3(0, 0.8, 0),
-             color=(80, 60, 15)),
-        Prop('objects\\printer', env, transform=master_transform * table_offset * SE3(0, -0.95, 0) * SE3.Rz(pi),
-             color=(200, 100, 10)),
-        # Prop('objects\\PlateHolder', env, is_stl=False, transform=master_transform * table_offset * SE3(0, -0.95, 0) * SE3.Rz(pi))
+        #Prop('objects\\Estop', env, transform=master_transform * table_offset * SE3(-2, 0.65, 2e-3), color=(100, 0, 0)),
+        Prop('objects\\TableEdited', env, transform=master_transform * table_offset * SE3(-1.5, 1.2, 0), color=(99, 71, 32)),
+        Prop('objects\\extinguisher', env, transform=master_transform * SE3(-2, 1.35, 0), color=(102, 15, 13)),
+        Prop('objects\\StorageEdited', env, transform=master_transform * SE3(-0.5, -0.5, 0.65) * SE3.Rz(pi / 2),color=(80, 60, 15)),
+        Prop('objects\\printer', env, transform=master_transform * table_offset * SE3(0.3, -0.95, 0.02) * SE3.Rz(pi),color=(0, 0, 1)),
+        #Prop('objects\\HolderEdited', env, is_stl=False, transform=master_transform * table_offset * SE3(0.8, -0.95, 0) * SE3.Rz(pi)),
+        Prop('objects\\FloorEdited', env, transform=master_transform * table_offset * SE3(3, 2.5, -1) * SE3.Rz(pi/2), color = (100, 10, 10)),
+        Prop('objects\\WallsEdited', env, transform=master_transform * table_offset * SE3(3, 2.5, -1) * SE3.Rz(pi/2), color = (10, 10, 100)),
+        Prop('objects\\OverheadLightEdited', env, transform=master_transform * table_offset * SE3(0.2, -0.1, 1.5), color=(200, 200, 200)),
+        Prop('objects\\OverheadLightEdited', env, transform=master_transform * table_offset * SE3(1, -0.1, 1.5), color=(200, 200, 200)),
+        Prop('objects\\OverheadLightEdited', env, transform=master_transform * table_offset * SE3(-3, -0.1, 1.5), color=(200, 200, 200)),
+        Prop('objects\\WarningSignEdited', env, transform=master_transform * table_offset * SE3(-1.53, 1.5, 0.65) * SE3.Rz(-pi/2) * SE3.Rx(pi/2), color=(200, 50, 50)),
+        Prop('objects\\LightCurtainEdited', env, transform=master_transform * table_offset * SE3(-1.53, 1.15, -0.7) * SE3.Rz(-pi / 2), color=(200, 50, 50)),
+        Prop('objects\\LightCurtainEdited', env, transform=master_transform * table_offset * SE3(-1.53, -1.15, -0.7) * SE3.Rz(-pi / 2), color=(200, 50, 50)),
+
     ]
 
     # Use XYZRz encoded position
-    gate_locations = [(-1.8, 0, 0, 0), (-1.8, -gate_len, 0, 0), (1.8, 0, 0, 0), (1.8, -gate_len, 0, 0),
-                      (1.8 - gate_len, -gate_len, 0, 90), (1.8, -gate_len, 0, 90),
-                      (1.8 - 2 * gate_len, -gate_len, 0, 90),
-                      (1.8, gate_len, 0, 90), (1.8 - 2 * gate_len, gate_len, 0, 90)]
+    gate_locations = [(-1.5, -2.4, 0, 0), (-1.5, 1.15, 0, 0)]
 
     extra_gate_locations = [(*g[:2], 0.6, g[3]) for g in gate_locations]  # Add a second layer of gates
     extra_gate_locations += [(*g[:2], 1.2, g[3]) for g in gate_locations]  # Add a third layer of gates
@@ -67,14 +64,14 @@ def create_sim_env(env, master_transform=None):
 
 
 def get_reposition_table():
-    correction = SE3(0.4, 0, 0.24)
+    correction = SE3(0.1, 0, 0.24)
     origin = SE3(0.1, 0, 0) * correction
     start_pos = SE3(0, 0.4, 0) * correction
     rot_correct = SE3.Ry(-90, unit="deg") * SE3.Rz(-90, unit="deg")
     move_out_offset = SE3(-0.2, 0, 0)
     move_in_offset = SE3(0.1, 0, 0)
-    targets = [SE3(-0.1, 0.1, 0), SE3(-0.1, -0.1, 0), SE3(-0.1, -0.4, 0),
-               SE3(-0.1, 0.4, 0.26), SE3(-0.1, 0.1, 0.26), SE3(-0.1, -0.1, 0.26), SE3(-0.1, -0.4, 0.26)]
+    targets = [SE3(-0.1, 0.1, 0), SE3(-0.1, -0.2, 0), SE3(-0.1, -0.5, 0),
+               SE3(-0.1, 0.4, 0.26), SE3(-0.1, 0.1, 0.26), SE3(-0.1, -0.2, 0.26), SE3(-0.1, -0.5, 0.26)]
 
     targets = [t * correction for t in targets]
 
@@ -137,6 +134,39 @@ def get_load_path():
     path.add_path(action="rel", obj_id=0)
     pos *= SE3(0.6, 0, 0)
     path.add_path(pos * rot_end, "m")
+
+    path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
+                   1.01747401e+00, 1.20284037e-06], "joint")
+    path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
+                   1.01747401e+00, 1.20284037e-06], "joint")
+
+    return path
+
+
+def get_refill_path():
+    origin = SE3(0, -0.5, 0.5) * SE3.Rz(pi / 2)
+    start_pos = SE3(0.2, -0.52, 0.1)
+    end_pos = SE3(0, -0.52, 0.1)
+    rot_start = SE3.Ry(90, unit="deg") * SE3.Rx(90, unit="deg") * SE3.Rz(90, unit="deg")
+
+    path = PathPlan(SE3(-0.5, 0, 0.5))
+    
+    pos = start_pos
+    path.add_path(pos * rot_start, "rpd")
+    pos *= SE3(0, 0, -0.3)
+    path.add_path(pos * rot_start, "m")
+    path.add_path(action="grb", obj_id=0)
+    pos *= SE3(0, 0, 0.3)
+    path.add_path(pos * rot_start, "m")
+
+    pos = end_pos
+    path.add_path(pos * rot_start, "rpd")
+    pos *= SE3(-0.3, 0, 0)
+    path.add_path(pos * rot_start, "m")
+    path.add_path(action="rel", obj_id=0)
+    pos *= SE3(0.6, 0, 0)
+    path.add_path(pos * rot_start, "m")
+
     path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
                    1.01747401e+00, 1.20284037e-06], "joint")
     path.add_path([1.01747430e+00, -4.22917879e-01, -1.71539122e+00, 2.13830883e+00,
@@ -154,9 +184,9 @@ def full_scene_sim(scene_file='altscene.json'):
     create_sim_env(env, scene_offset)
 
     far_far_away = SE3(1000, 0, 0)  # Very far away
-    printer_spawn = scene_offset * SE3(0, -0.15, 0.65)
+    printer_spawn = scene_offset * SE3(0.3, -0.73, 0.8)
 
-    robot_1_base = scene_offset * SE3(0, 0, 0.65)
+    robot_1_base = scene_offset * SE3(0.3, 0, 0.65)
 
     pos_table = get_reposition_table()
     load_path = get_load_path()
@@ -165,6 +195,7 @@ def full_scene_sim(scene_file='altscene.json'):
     #plates[0] = "Waiting"
 
     null_path = PathPlan(SE3(-0.5, 0, 0.5))
+    refill_path = get_refill_path()
     pos_table.append(null_path)
     traj_planner = RobotController(null_path, robot=UR5, swift_env=env, transform=robot_1_base)
     traj_planner_2 = RobotController(null_path, robot=GantryBot, swift_env=env,
@@ -177,7 +208,7 @@ def full_scene_sim(scene_file='altscene.json'):
     tool_offset2 = traj_planner_2.tool_offset
 
     # Place bricks and scene
-    items = [Prop('objects\\plate2', env, position, transform=far_far_away, color=(5, 5, 5)) for
+    items = [Prop('objects\\plate2', env, position, transform=far_far_away, color=(0, 100, 0)) for
              position in
              read_scene(scene_file)[0]]
 
@@ -186,9 +217,9 @@ def full_scene_sim(scene_file='altscene.json'):
     robot_can_move = [False]
     obstructions = [False for _ in range(8)]
     obstructors = [Prop("objects\\dot", env, transform=far_far_away) for _ in obstructions]
-    obs_locations = [[-0.85, -0.15, 0.24], [-0.85, 0.15, 0.24], [-0.85, 0.4, 0.24],
-                     [-0.85, -0.40, 0.5], [-0.85, -0.15, 0.5], [-0.85, 0.15, 0.5], [-0.85, 0.40, 0.5],
-                     [-0.85, -0.40, 0.24]]
+    obs_locations = [[-0.55, -0.15, 0.24], [-0.55, 0.15, 0.24], [-0.55, 0.4, 0.24],
+                     [-0.55, -0.40, 0.5], [-0.55, -0.15, 0.5], [-0.55, 0.15, 0.5], [-0.55, 0.40, 0.5],
+                     [-0.55, -0.40, 0.24]]
     obs_locations = [scene_offset * SE3(0, 0, 0.7) * SE3(*loc) for loc in obs_locations]
 
     gui_thread = Thread(target=run_gui_in_thread, kwargs={"r1": traj_planner, "r2": traj_planner_2,
@@ -201,8 +232,10 @@ def full_scene_sim(scene_file='altscene.json'):
     plate_in_move = False
     p1_stop = False
 
-    estop_button = EStop(initial_pose=SE3(), use_physical_button=True)
+    estop_button = EStop(initial_pose=SE3(-1.3,0,0.65), use_physical_button=True)
     estop_button.add_to_env(env)
+    estop_button2 = EStop(initial_pose=SE3(0,-1,0.65))
+    estop_button2.add_to_env(env)
 
     while True:
         if estop_button.get_state():
@@ -287,6 +320,7 @@ def full_scene_sim(scene_file='altscene.json'):
                 traj_planner_2.run(pos_table[plate_id])
                 plates[plate_id] = "Moving"
                 p1_stop = True
+                #traj_planner.run(refill_path)
 
         if action_2['stop'] and p1_stop:
             plate_in_move = False

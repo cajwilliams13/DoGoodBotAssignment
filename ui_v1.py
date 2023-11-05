@@ -23,6 +23,10 @@ class RobotControlGUI(tk.Tk):
         self.estop_btn = ttk.Button(prod_cell_frame, text="E-STOP", command=self.toggle_estop)
         self.estop_btn.grid(row=0, column=1, padx=5, pady=5)
 
+        self.mode = tk.StringVar(value="Mode: Joint")
+        self.toggle_mode_btn = ttk.Button(prod_cell_frame, textvariable=self.mode, command=self.toggle_mode)
+        self.toggle_mode_btn.grid(row=0, column=0, padx=5, pady=5)
+
         # Start Button
         self.start_btn = ttk.Button(prod_cell_frame, text="Start", command=self.start, state=tk.DISABLED)
         self.start_btn.grid(row=0, column=2, padx=5, pady=5)
@@ -38,12 +42,39 @@ class RobotControlGUI(tk.Tk):
         self.rot_vals = {}
 
     def create_robot_interface(self):
-        self.create_joint_controls("Robot Joint Control 1", 1, 6, 1, 0)
-        self.create_joint_controls("Robot Joint Control 2", 2, 3, 2, 0)
-
+        if "Joint" in self.mode.get():
+            self.create_joint_controls("Robot Joint Control 1", 1, 6, 1, 0)
+            self.create_joint_controls("Robot Joint Control 2", 2, 3, 2, 0)
+        else:
+            self.create_xyz_controls("Robot XYZ Control 1", 1, 0, 1)
+            self.create_xyz_controls("Robot XYZ Control 2", 2, 0, 2)
         # Disable robot control panels if E-STOP is pressed
         if self.estop_active:
             self.disable_controls()
+
+    def create_xyz_controls(self, label, robot_num, row, col):
+        frame = ttk.LabelFrame(self, text=label)
+        frame.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
+
+        # XYZ labels, readouts, and control buttons
+        for index, axis in enumerate(['X', 'Y', 'Z']):
+            ttk.Label(frame, text=axis).grid(row=index, column=0, padx=5, pady=5)
+            # Update the StringVar dictionary structure
+            if robot_num not in self.axis_vals:
+                self.axis_vals[robot_num] = {}
+            ttk.Button(frame, text=f"+ {axis}").grid(row=index, column=2, padx=5, pady=5)
+            ttk.Button(frame, text=f"- {axis}").grid(row=index, column=3, padx=5, pady=5)
+        # Rotation labels, readouts, and control buttons
+        for index, axis in enumerate(['RX', 'RY', 'RZ']):
+            ttk.Label(frame, text=axis).grid(row=index + 3, column=0, padx=5, pady=5)
+            # Update the StringVar dictionary structure
+            if robot_num not in self.rot_vals:
+                self.rot_vals[robot_num] = {}
+
+
+            ttk.Button(frame, text=f"+ {axis}").grid(row=index + 3, column=2, padx=5, pady=5)
+            ttk.Button(frame, text=f"- {axis}").grid(row=index + 3, column=3, padx=5, pady=5)
+
 
     def create_joint_controls(self, title, robot_num, joints, col, row):
         joint_frame = ttk.LabelFrame(self, text=title)
@@ -86,13 +117,11 @@ class RobotControlGUI(tk.Tk):
         for child in self.winfo_children():
             if isinstance(child, ttk.LabelFrame) and "Robot" in child.cget("text"):
                 child.destroy()
-
         # Switch mode
         if "Joint" in self.mode.get():
             self.mode.set("Mode: XYZ")
         else:
             self.mode.set("Mode: Joint")
-
         self.create_robot_interface()
 
     def disable_controls(self):
@@ -153,5 +182,3 @@ def run_gui_in_thread(**kargs):
 if __name__ == "__main__":
     gui_thread = Thread(target=run_gui_in_thread)
     gui_thread.start()
-
-    # Add your simulation or other logic here
