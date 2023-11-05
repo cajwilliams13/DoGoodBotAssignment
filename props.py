@@ -9,9 +9,8 @@ import os
 class Prop(DHRobot3D):
     """Oh look, it's a prop.
        It's there, doing its thing. Don't overthink it."""
-    # Todo: Known issue where file paths are not formatted properly on linux
 
-    def __init__(self, filename, env, is_stl=True, position=None, transform=None, color=None):
+    def __init__(self, filename, env, is_stl=True, position=None, transform=None, color=None, force_unit=None):
         links = [rtb.PrismaticDH(theta=0, a=0, alpha=pi/2, qlim=[0, 0])]  # No links needed, but len 0 is forbidden
 
         # Default to a brick red
@@ -31,13 +30,13 @@ class Prop(DHRobot3D):
         current_path = os.path.abspath(os.path.dirname(__file__))
         super().__init__(links, link_files, name=filename, link3d_dir=current_path, qtest=qtest,
                          qtest_transforms=qtest_transforms)
+        self.force_unit = force_unit
+
         if position is not None:
-            # Smart unit changes, since deg < 2pi is unlikely
-            self.base = SE3(position[:3]) * (SE3.Rz(position[3]) if position[3] < 2 * pi else
-                                             SE3.Rz(position[3], unit='deg'))
+            self.update_position(position)
 
         if transform is not None:
-            self.base = transform @ self.base
+            self.update_transform(transform)
         self.q = qtest
 
         self.add_to_env(env)
@@ -45,3 +44,12 @@ class Prop(DHRobot3D):
     def update_transform(self, transform):
         self.base = transform
         self.q = [0]  # Need to poke q, or the transform update doesn't happen
+
+    def  update_position(self, position):
+        if position is not None:
+            if self.force_unit is None:
+                # Smart unit changes, since deg < 2pi is unlikely
+                self.base = SE3(position[:3]) * (SE3.Rz(position[3]) if position[3] < 2 * pi else
+                                                 SE3.Rz(position[3], unit='deg'))
+            else:
+                self.base = SE3(position[:3]) * SE3.Rz(position[3], unit=self.force_unit)
