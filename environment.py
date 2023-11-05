@@ -43,6 +43,6 @@ def create_sim_env(env, master_transform=None):
     gate_locations += extra_gate_locations
 
     for gate in gate_locations:
-        props.append(Prop('objects\\w2h4_fence', env, transform=master_transform, position=gate, color=(50, 50, 50)))
+        props.append(Prop('objects\\w2h4_fence', env, position=gate, color=(50, 50, 50), debug=True))
 
     return props
