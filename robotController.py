@@ -8,6 +8,7 @@ import spatialmath
 
 from ir_support import UR5
 
+from myUtils import eng_unit
 from props import Prop
 from spatialmath import SE3
 from tqdm import tqdm
@@ -72,6 +73,7 @@ class RobotController:
         self.arm.add_to_env(self.swift_env)
 
     def run(self, new_path):
+        """Instruct robot to run new path"""
         self.path = new_path
         self.instruction_index = 0
 
@@ -79,12 +81,6 @@ class RobotController:
     def _get_rapid_trajectory(self, j_start, end):
         """Joint-level interpolation function"""
         ik_result = self._perform_ik_search(end, q0=j_start)
-
-        if ik_result[1] != 1:
-            pass
-            # print(f"Warning: Failed rapid IK search: {ik_result}")
-
-        self._check_ik_tolerance(ik_result, end)
 
         j_end = ik_result[0]
         result = [np.linspace(s, e, self.step_count * self.interp_count * 2) for s, e in zip(j_start, j_end)]
@@ -103,7 +99,6 @@ class RobotController:
                 pass
                 print(f"Warning: Failed precise IK search: {ik_result}")
 
-            self._check_ik_tolerance(ik_result, t)
             joint_states.extend(self._interpolate_joints(q, ik_result[0]))
             q = ik_result[0]
 
@@ -142,7 +137,7 @@ class RobotController:
         if next_instr['action'] in ['m', 'rpd']:  # Instruction is a movement command
             end = next_instr['point']
             self.current_trajectory['joints'] = self.get_trajectory(end, rapid=next_instr['action'] == 'rpd')
-            # print(f"Moving to transform:\n{end}")
+            print(f"Moving to transform:\n{end}")
             return True
         if next_instr['action'] == "joint":
             end = next_instr["point"]
@@ -197,38 +192,34 @@ class RobotController:
         try:
             for i in range(step_count):
                 # Compute the desired end-effector pose at the next time step
-                T_desired = rtb.ctraj(start, end, (i + 1) / step_count)
+                t_desired = rtb.ctraj(start, end, (i + 1) / step_count)
 
                 # Compute the Jacobian matrix at the current joint configuration
-                J = self.arm.jacob0(q)
+                j = self.arm.jacob0(q)
 
                 # Compute the error in position and orientation
-                T_current = self.arm.fkine(q)
-                delta_T = self.tr2delta(T_current, T_desired)
+                t_current = self.arm.fkine(q)
+                delta_tt = self.tr2delta(t_current, t_desired)
 
                 # Compute the desired end-effector velocity
-                v_desired = delta_T / delta_t
+                v_desired = delta_tt / delta_t
 
                 # Solve for joint velocities
                 velocity_scaling_factor = 0.1  # Artificially scale down the velocities
-                q_dot = velocity_scaling_factor * np.linalg.pinv(J) @ v_desired
+                q_dot = velocity_scaling_factor * np.linalg.pinv(j) @ v_desired
 
                 # Integrate joint velocities to get joint positions
                 q = q + q_dot * delta_t
                 joint_states.append(q.tolist())
+
         except ValueError:
             print('Math error in rmrc')
             joint_states = self._get_rapid_trajectory(self.arm.q, end)
 
         return joint_states
 
-    def _check_ik_tolerance(self, ik_result, target):
-        ee_error = self.arm.fkine(ik_result[0]).t - target.t
-        if any(5e-3 < ee_error):
-            pass
-            # print(f"Warning: IK tolerance above limit: {ee_error}")
-
-    def _interpolate_joints(self, j_start, j_end, count=None):
+    def _interpolate_joints(self, j_start, j_end, count=None) -> list:
+        """Simple joint interpolation"""
         count = self.interp_count if count is None else count
         return [j_start + fraction * (j_end - j_start) for fraction in np.linspace(0, 1, count)]
 
@@ -236,13 +227,14 @@ class RobotController:
         return self.arm.fkine(self.arm.q)
 
     def prove_move(self, transform):
+        """Provide verification robot has moved properly"""
         self.current_trajectory['joints'] = self.get_trajectory(transform, rapid=True)
         while self.current_trajectory['joints']:
             self._process_current_step(estop=False)
             self.swift_env.step(0.01)
 
-        # print(f"Robot is expected to be at: \n{(self.base_offset * transform * self.inv_tool_offset).A}")
-        # print(f"Robot is actually at: \n{self.arm.fkine(self.arm.q).A}")
+        print(f"Robot is expected to be at: \n{(self.base_offset * transform * self.inv_tool_offset).A}")
+        print(f"Robot is actually at: \n{self.arm.fkine(self.arm.q).A}")
         self.swift_env.hold()
 
     # ----------- Sims and plots -----------
@@ -297,11 +289,10 @@ class RobotController:
             for i, t in tqdm(enumerate(transforms), desc='Plotting objects', total=len(transforms)):
                 Prop('objects\\dot', self.swift_env, position=[*t, 0], color=(0, 0, 255))
 
-        # print(f"Robot reaches dimensions:")
+        print(f"Robot reaches dimensions:")
         for dim, mi, ma in zip(['x', 'y', 'z'], [x_min, y_min, z_min], [x_max, y_max, z_max]):
-            pass
-            # print(f"  {dim}: {eng_unit(mi, 'm')} : {eng_unit(ma, 'm')}")
-        # print(f"And explores a volume ~ {eng_unit((x_max - x_min) * (y_max - y_min) * (z_max - z_min), 'm3')}")
+            print(f"  {dim}: {eng_unit(mi, 'm')} : {eng_unit(ma, 'm')}")
+        print(f"And explores a volume ~ {eng_unit((x_max - x_min) * (y_max - y_min) * (z_max - z_min), 'm3')}")
 
     def simulation_step(self, estop):
         """Simulate next action in env"""
@@ -343,11 +334,13 @@ class RobotController:
             return action
 
     def tweak(self, joint, dist):
+        """Nudge one joint by an amount"""
         if self.instruction_index != len(self.path.path_points) - 1:
             return
 
         q = self.arm.q
         q[joint] += dist / 180 * pi
         self.arm.q = q
+
         self.gripper.base = self.arm.fkine(self.arm.q) * self.gripper_base_offset
-        self.gripper.setq(None)
+        self.gripper.setq(None)  # Force gripper to follow arm
