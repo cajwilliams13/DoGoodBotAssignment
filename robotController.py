@@ -11,28 +11,19 @@ import roslibpy
 import spatialmath
 
 from ir_support import UR5
-from pathplanner import PathPlan
+
 from props import Prop
-from rosbags.highlevel import AnyReader  # For rosbag playback
 from spatialmath import SE3
 from tqdm import tqdm
 
 from Gripper.Gripper import Gripper
-from myUtils import eng_unit, plural, safe_write_to_file
+from myUtils import safe_write_to_file
 
 
 class RobotController:
     """Controls robot, manages simulation and ROS transmissions"""
-    # todo: Separate out a RosRobot class
 
-    def __init__(self, move_list, swift_env=None, ros_client=None, transform=None, bake=None, robot=None, gripper=None):
-        assert type(bake) == str or bake is None
-
-        self.bake_filename = bake
-        self.bake_data = []
-        self.playbake_data = None
-        self.has_played = 0
-
+    def __init__(self, move_list, swift_env=None, transform=None, robot=None, gripper=None):
         self.path = move_list
         # self.path.test()  # Just in case
         self.end_effector_pos = self.path.start_pos
@@ -91,97 +82,8 @@ class RobotController:
         self.step_count = 5
         self.interp_count = 4
 
-        self.has_env = swift_env is not None
-        self.is_transmitting = ros_client is not None and not self.has_env  # Defer to simulation rendering
         self.swift_env = swift_env
-        self.ros_client = ros_client
-
-        if not self.has_env and not self.is_transmitting:  # One of these should be present
-            raise ValueError("No env or client attached")
-
-        if self.has_env:  # Default to 
-            self.arm.add_to_env(self.swift_env)
-
-        elif self.is_transmitting:
-            #print('Setting up ROS connection')
-            self.control_topic = None
-            self.subscriber = None
-            self.last_message = None
-            self._setup_ros_client()
-
-    # ------------ ROS Handling ------------
-    def _save_message(self, message):
-        """Callback function to store ROS message"""
-        self.last_message = message
-
-    def _setup_ros_client(self):
-        self.ros_client.run()
-        self.subscriber = roslibpy.Topic(self.ros_client, '/joint_states',
-                                         'sensor_msgs/JointState')  # Joint state subscriber
-        self.subscriber.subscribe(lambda l: self._save_message(l))  # Bind callback
-
-        self.control_topic = roslibpy.Topic(self.ros_client, '/scaled_pos_joint_traj_controller/command',
-                                            'trajectory_msgs/JointTrajectory')
-        self.control_topic.advertise()
-
-    def _send_ros_message(self, joints):
-        assert self.is_transmitting
-        assert len(joints) == 6
-        #print(f"Going to j: {joints}")
-        joint_trajectory_msg = {
-            'joint_names': ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint',
-                            'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint'],
-            'points': [{
-                'positions': [float(j) for j in joints],
-                'time_from_start': {'secs': 5, 'nsecs': 0}
-                # Time for reaching the desired position, which is 5 seconds in this case
-            }]
-        }
-        self.control_topic.publish(roslibpy.Message(joint_trajectory_msg))
-
-    def transmit_bake(self, bakefile):
-        """Transmit previously recorded robot actions to ROS"""
-        if self.playbake_data is None:
-            self.playbake_data = self._read_bake(bakefile)
-
-        joint_trajectory_msg = {  # This is the reset move
-            'joint_names': ['shoulder_pan_joint', 'shoulder_lift_joint', 'elbow_joint',
-                            'wrist_1_joint', 'wrist_2_joint', 'wrist_3_joint'],
-            'points': [{
-                'positions': [float(j) for j in self.playbake_data[0]['joints']][:6],
-                'time_from_start': {'secs': 5, 'nsecs': 0}
-            }]
-        }
-        self.control_topic.publish(roslibpy.Message(joint_trajectory_msg))
-        time.sleep(5)
-
-        for entry in self.playbake_data:
-            self.current_trajectory = {'stop': False, **entry, 'joints': [entry['joints']]}
-            self.arm.q = entry['joints'][:]
-            self._send_ros_message(entry['joints'])
-            t = time.time()
-            time.sleep(0.1)
-            while any(abs(self.last_message['position'] - self.arm.q) > 5e-3):  # Wait for joints to reach target
-                if time.time() > t + 1:
-                    t = time.time()
-                    #print(abs(self.last_message['position'] - self.arm.q).tolist())  # #print positional error at 1Hz
-
-        return True, self.current_trajectory
-
-    @staticmethod
-    def read_rosbag(rosbagfile):
-        # create reader instance and open for reading
-        with AnyReader([Path(rosbagfile)]) as reader:
-            connection = [x for x in reader.connections if x.topic == '/joint_states']
-            positions = []
-            # #print(connection.msgdef)
-            for connection, timestamp, rawdata in reader.messages(connection):
-                msg = reader.deserialize(rawdata, connection.msgtype)
-                positions.append(msg.__dict__['position'])  # Couldn't find the intended retrieval function.
-        bake = [{'stop': False, 'action': 'm', 'joints': j} for j in positions]
-        bake[-1]['stop'] = True
-        #print(f"Loaded bagfile with {len(bake)} {plural('position', len(bake))}")
-        return bake
+        self.arm.add_to_env(self.swift_env)
 
     def run(self, new_path):
         self.path = new_path
@@ -350,7 +252,7 @@ class RobotController:
     def prove_move(self, transform):
         self.current_trajectory['joints'] = self.get_trajectory(transform, rapid=True)
         while self.current_trajectory['joints']:
-            self._process_current_step(do_bake=False)
+            self._process_current_step(estop=False)
             self.swift_env.step(0.01)
 
         #print(f"Robot is expected to be at: \n{(self.base_offset * transform * self.inv_tool_offset).A}")
@@ -417,19 +319,16 @@ class RobotController:
 
     def simulation_step(self, estop):
         """Simulate next action in env"""
-        if not self.has_env:
-            raise EnvironmentError("Environment must be attached for simulation")
 
         # If no trajectory/end of trajectory, get the next trajectory
         if self.current_trajectory is None or not len(self.current_trajectory['joints']):
             if not self.get_next_trajectory():
-                self._save_bake()
                 return {'stop': True}  # End the simulation
 
         action = self._process_current_step(estop)
         return action
 
-    def _process_current_step(self, estop, do_bake=True):
+    def _process_current_step(self, estop):
         """Process and return the current simulation step"""
         if estop:
             action = {
@@ -455,46 +354,7 @@ class RobotController:
                 'joints': current_step,
                 **self.current_trajectory
             }
-            if do_bake:
-                self._record_bake(action, current_step, gripper_val)
             return action
-    
-    # ---------- Bake management -----------
-    def _record_bake(self, action, current_step, gripper_val):
-        """Add a bake record"""
-        self.bake_data.append({
-            'stop': action['stop'],
-            'action': action['action'],
-            'joints': [float(c) for c in current_step],
-            'gripper': [float(g) for g in gripper_val] if gripper_val is not None else None
-        })
-
-    def _save_bake(self):
-        if self.bake_filename is None:
-            return
-
-        safe_write_to_file('bakes\\' + self.bake_filename, json.dumps(self.bake_data), new_file=True)
-
-    def _read_bake(self, bakefile):
-        if bakefile[-3:] == 'bag':
-            return self.read_rosbag(bakefile)[:]
-        self.bake_data = json.load(open(bakefile))
-        return self.bake_data[:]  # Slice to copy data, else gets bound to the file unintentionally
-
-    def playback_bake(self, bakefile):
-        """Playback recorded robot actions from file"""
-        if self.playbake_data is None:
-            self.playbake_data = self._read_bake(bakefile)
-        if self.has_played == len(self.playbake_data):
-            return False, None
-        entry = self.playbake_data[self.has_played]
-        self.has_played += 1
-        self.current_trajectory = {'stop': False, **entry, 'joints': [entry['joints']]}
-
-        self.arm.q = entry['joints'][:]
-        self.gripper.base = self.arm.fkine(self.arm.q) * self.gripper_base_offset
-        self.gripper.setq(self.current_trajectory['gripper']) if 'gripper' in self.current_trajectory else None
-        return True, self.current_trajectory
 
     def tweak(self, joint, dist):
         if self.instruction_index != len(self.path.path_points) - 1:
