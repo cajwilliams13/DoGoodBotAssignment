@@ -57,6 +57,9 @@ def create_sim_env(env, master_transform=None):
     for gate in gate_locations:
         props.append(Prop('objects\\w2h4_fence', env, transform=master_transform, position=gate, color=(50, 50, 50)))
 
+    estop_button2 = EStop(initial_pose=SE3(0, -1, 0.65))
+    estop_button2.add_to_env(env)
+
     return props
 
 
@@ -158,46 +161,50 @@ def full_scene_sim(scene_file='altscene.json'):
     env.launch(realtime=True)
 
     scene_offset = SE3(0, 0, 0) * SE3.Rz(0, unit='deg')  # Master transform to move the entire robot + room setup
-    create_sim_env(env, scene_offset)
 
+    # Objects not currently visible get sent to the land far, far away
     far_far_away = SE3(1000, 0, 0)  # Very far away
-    printer_spawn = scene_offset * SE3(0.3, -0.73, 0.8)
 
-    robot_1_base = scene_offset * SE3(0.3, 0, 0.65)
-
-    pos_table = get_reposition_table()
-
-    load_path = get_load_path()
-
-    plates = ["Absent" for _ in range(8)]
-
+    # Prepare robot paths
     null_path = PathPlan(SE3(-0.5, 0, 0.5))
-    pos_table.append(null_path)
-    traj_planner = RobotController(null_path, robot=UR5, swift_env=env, transform=robot_1_base)
-    traj_planner_2 = RobotController(null_path, robot=GantryBot, swift_env=env,
-                                     transform=scene_offset * SE3(-0.7, 0, 0.65) * SE3.Rz(180, unit="deg"),
-                                     gripper=Gripper2)
-    # Tool offset needed for brick manipulation
-    tool_offset = traj_planner.tool_offset
-    tool_offset2 = traj_planner_2.tool_offset
+    reposition_paths = get_reposition_table()
+    reposition_paths.append(null_path)  # Allows plate 8 to stay in place
+    load_path = get_load_path() 
 
-    # Place bricks and scene
+    # Key object spawn locations
+    printer_spawn = scene_offset * SE3(0.3, -0.73, 0.8)
+    robot_1_base = scene_offset * SE3(0.3, 0, 0.65)
+    robot_2_base = scene_offset * SE3(-0.7, 0, 0.65) * SE3.Rz(180, unit="deg")
+
+    # Spawn robots
+    robot_1 = RobotController(null_path, robot=UR5, swift_env=env, transform=robot_1_base)
+    robot_2 = RobotController(null_path, robot=GantryBot, swift_env=env, transform=robot_2_base, gripper=Gripper2)
+
+    # Tool offset needed for object manipulation
+    tool_offset = robot_1.tool_offset
+    tool_offset2 = robot_2.tool_offset
+
+    # Place objects and scene
+    create_sim_env(env, scene_offset)
     items = [Prop('objects\\plateWithObj', env, position, transform=far_far_away, color=(0, 100, 0)) for
              position in
              read_scene(scene_file)[0]]
 
-    robot_can_move = [False]  # These are wrapped in a single index list to force pass-by referencee
+    # Synced variables
+    robot_can_move = [False]  # These are wrapped in a single index list to force pass-by reference
     obstructions = [False for _ in range(8)]
-    obstructors = [Prop("objects\\dot", env, transform=far_far_away) for _ in obstructions]
+    plates_status = ["Absent" for _ in range(8)]
+
+    gui_thread = Thread(target=run_gui_in_thread, kwargs={"r1": robot_1, "r2": robot_2,
+                                                          "plates": plates_status, "robot_can_move": robot_can_move,
+                                                          "obstructions": obstructions})
+    gui_thread.start()
+
+    obstruction_objects = [Prop("objects\\dot", env, transform=far_far_away) for _ in obstructions]
     obs_locations = [[-0.55, -0.15, 0.24], [-0.55, 0.15, 0.24], [-0.55, 0.4, 0.24],
                      [-0.55, -0.40, 0.5], [-0.55, -0.15, 0.5], [-0.55, 0.15, 0.5], [-0.55, 0.40, 0.5],
                      [-0.55, -0.40, 0.24]]
     obs_locations = [scene_offset * SE3(0, 0, 0.7) * SE3(*loc) for loc in obs_locations]
-
-    gui_thread = Thread(target=run_gui_in_thread, kwargs={"r1": traj_planner, "r2": traj_planner_2,
-                                                          "plates": plates, "robot_can_move": robot_can_move,
-                                                          "obstructions": obstructions})
-    gui_thread.start()
 
     held_id = None
     held_id_2 = None
@@ -207,13 +214,14 @@ def full_scene_sim(scene_file='altscene.json'):
 
     estop_button = EStop(initial_pose=SE3(-1.3, 0, 0.65), use_physical_button=True)
     estop_button.add_to_env(env)
-    estop_button2 = EStop(initial_pose=SE3(0, -1, 0.65))
-    estop_button2.add_to_env(env)
 
     while True:
+        # Check physical estop
         if estop_button.get_state():
             robot_can_move[0] = False
-        for i, p in enumerate(plates):
+
+        # Spawn and manage plates
+        for i, p in enumerate(plates_status):
             if p == "Absent":
                 items[i].update_transform(far_far_away)
             if p == "Error":
@@ -223,79 +231,83 @@ def full_scene_sim(scene_file='altscene.json'):
                 plate_in_move = False
 
             if obstructions[i]:
-                if p == "Stowed":
+                if p == "Stowed":  # Block user from obstructing a cell with a plate in it
                     obstructions[i] = False
                     print("Cannot obstruct cell with stowed plate")
                 elif p == "Moving":
                     robot_can_move[0] = False
                     print("Stopping due to obstructed cell")
 
-        for state, obj, loc in zip(obstructions, obstructors, obs_locations):
+        # Spawn and despawn obstruction objects
+        for state, obj, loc in zip(obstructions, obstruction_objects, obs_locations):
             if state:
                 obj.update_transform(loc)
             else:
                 obj.update_transform(far_far_away)
 
-        if not plate_in_move and not any([p == "Moving" for p in plates]):
-            for i, p in enumerate(plates):
+        # Automatically queue up waiting plates (Should never happen in reality)
+        if not plate_in_move and not any([p == "Moving" for p in plates_status]):
+            for i, p in enumerate(plates_status):
                 if p == "Waiting":
                     if obstructions[i]:
-                        plates[i] = "Obstructed"
+                        plates_status[i] = "Obstructed"
                         print("Cell is obstructed")
                     else:
                         plate_id = i
                         plate_in_move = True
-                        traj_planner.simulation_step(not robot_can_move[0])
-                        traj_planner.run(load_path)
+                        robot_1.simulation_step(not robot_can_move[0])
+                        robot_1.run(load_path)
                         items[i].update_transform(printer_spawn)
                         p1_stop = False
                 elif p == "Obstructed":
                     if not obstructions[i]:
-                        plates[i] = "Absent"
+                        plates_status[i] = "Absent"
 
-        action_1 = traj_planner.simulation_step(not robot_can_move[0])
-        action_2 = traj_planner_2.simulation_step(not robot_can_move[0])
+        # Robot 1 handling
+        action_1 = robot_1.simulation_step(not robot_can_move[0])
 
         if 'grip' in action_1:
             held_id = plate_id
 
-        if held_id is not None:  # Move brick if being held
-            end_effector_transform = traj_planner.get_end_effector_transform()
+        if held_id is not None:  # Move item if being held
+            end_effector_transform = robot_1.get_end_effector_transform()
             items[held_id].update_transform(
-                end_effector_transform * tool_offset * SE3(0, 0, 0) * SE3.Rx(-90, unit="deg"))
+                end_effector_transform * tool_offset * SE3.Rx(-90, unit="deg"))
 
         if 'release' in action_1:
             held_id = None
 
-        # ------------------------------------------------------------------------------------------
+        # Robot 2 handling
+        action_2 = robot_2.simulation_step(not robot_can_move[0])
 
         if 'grip' in action_2:
             held_id_2 = plate_id
 
-        if held_id_2 is not None:  # Move brick if being held
-            end_effector_transform = traj_planner_2.get_end_effector_transform()
+        if held_id_2 is not None:  # Move item if being held
+            end_effector_transform = robot_2.get_end_effector_transform()
             items[held_id_2].update_transform(
-                end_effector_transform * tool_offset2 * SE3(0, 0, 0) * SE3.Rx(-90, unit="deg"))
+                end_effector_transform * tool_offset2 * SE3.Rx(-90, unit="deg"))
 
         if 'release' in action_2:
             held_id_2 = None
 
         env.step(0.01)
 
+        # Sequence control logic
         if action_1['stop'] and plate_in_move:
             if obstructions[plate_id]:
                 print("Obstruction detected")
                 robot_can_move[0] = False
-                plates[plate_id] = "Error"
+                plates_status[plate_id] = "Error"
             else:
-                traj_planner_2.run(pos_table[plate_id])
-                plates[plate_id] = "Moving"
+                robot_2.run(reposition_paths[plate_id])
+                plates_status[plate_id] = "Moving"
                 p1_stop = True
 
         if action_2['stop'] and p1_stop:
             plate_in_move = False
             p1_stop = False
-            plates[plate_id] = "Stowed"
+            plates_status[plate_id] = "Stowed"
 
 
 if __name__ == '__main__':
