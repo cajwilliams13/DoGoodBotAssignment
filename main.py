@@ -29,7 +29,6 @@ def create_sim_env(env, master_transform=None):
     gate_len = 1.215  # Length of gate
 
     props = [
-        #Prop('objects\\Estop', env, transform=master_transform * table_offset * SE3(-2, 0.65, 2e-3), color=(100, 0, 0)),
         Prop('objects\\Table', env, transform=master_transform * table_offset * SE3(-1.5, 1.2, 0), color=(99, 71, 32)),
         Prop('objects\\extinguisher', env, transform=master_transform * SE3(-2, 1.35, 0), color=(102, 15, 13)),
         Prop('objects\\Storage', env, transform=master_transform * SE3(-0.5, -0.5, 0.65) * SE3.Rz(pi / 2),color=(80, 60, 15)),
