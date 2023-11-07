@@ -186,6 +186,7 @@ class RobotController:
         """RMRC interpolation function"""
         total_time = 500
         step_count = 50
+        damping_lim = 1e-6
         delta_t = total_time / step_count
         joint_states = []
         q = self.arm.q
@@ -197,16 +198,23 @@ class RobotController:
                 # Compute the Jacobian matrix at the current joint configuration
                 j = self.arm.jacob0(q)
 
+
                 # Compute the error in position and orientation
                 t_current = self.arm.fkine(q)
                 delta_tt = self.tr2delta(t_current, t_desired)
 
                 # Compute the desired end-effector velocity
                 v_desired = delta_tt / delta_t
+                manip = np.sqrt(np.linalg.det(j @ np.transpose(j)))
+
+                if manip < 0.04:
+                    damping = (1 - np.power(manip / 0.04, 2)) * 0.5
+                else:
+                    damping = 0
 
                 # Solve for joint velocities
                 velocity_scaling_factor = 0.1  # Artificially scale down the velocities
-                q_dot = velocity_scaling_factor * np.linalg.pinv(j) @ v_desired
+                q_dot = velocity_scaling_factor * np.linalg.pinv(j) @ v_desired + (damping * damping_lim) * np.ones(len(q))
 
                 # Integrate joint velocities to get joint positions
                 q = q + q_dot * delta_t
