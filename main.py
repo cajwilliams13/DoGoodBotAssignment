@@ -1,3 +1,4 @@
+import os
 from threading import Thread
 
 import swift
@@ -128,7 +129,7 @@ def full_scene_sim(scene_file='altscene.json'):
     robot_2_base = scene_offset * SE3(-0.7, 0, 0.65) * SE3.Rz(180, unit="deg")
 
     # Spawn robots
-    robot_1 = RobotController(null_path, robot=UR5, swift_env=env, transform=robot_1_base)
+    robot_1 = RobotController(null_path, robot=UR5, swift_env=env, transform=robot_1_base, debug_draw_path=True)  # Disable draw path here
     robot_2 = RobotController(null_path, robot=GantryBot, swift_env=env, transform=robot_2_base, gripper=Gripper2)
 
     # Tool offset needed for object manipulation
@@ -166,7 +167,21 @@ def full_scene_sim(scene_file='altscene.json'):
     estop_button = EStop(initial_pose=SE3(-1.3, 0, 0.65), use_physical_button=True)
     estop_button.add_to_env(env)
 
+    frame = 0
+    frame_subsampling = 5  # Only capture every nth frame. 1 -> inf, recommend 3 - 7
+    do_video = False
+
+    # Browser settings:
+    # - Set default download location to where the video should be made
+    # - Disable 'ask where to download' dialog
+    # Enable do_video
+    # Set frame subsampling, recommended = 5
+    # Fullscreen the browser
+    # Frames get recorded when robots are in motion
+    # Manually stitch frames afterward using ffmpeg, blender etc
+
     while True:
+        frame += 1
         # Check physical estop
         if estop_button.get_state():
             robot_can_move[0] = False
@@ -242,7 +257,11 @@ def full_scene_sim(scene_file='altscene.json'):
         if 'release' in action_2:
             held_id_2 = None
 
-        env.step(0.01)
+        env.step(0 if do_video else 0.03)
+        filename = f"screenshot_{frame}.png"
+        if do_video and any([p != "Absent" for p in plates_status]) and not frame % frame_subsampling:
+            env.screenshot(filename)
+            pass
 
         # Sequence control logic
         if action_1['stop'] and plate_in_move:
