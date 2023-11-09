@@ -19,7 +19,7 @@ from Gripper.Gripper import Gripper
 class RobotController:
     """Controls robot, manages simulation and ROS transmissions"""
 
-    def __init__(self, move_list, swift_env=None, transform=None, robot=None, gripper=None):
+    def __init__(self, move_list, swift_env=None, transform=None, robot=None, gripper=None, debug_draw_path=False):
         self.path = move_list
         self.end_effector_pos = self.path.start_pos
 
@@ -31,7 +31,7 @@ class RobotController:
         self.arm = robot()
         self.gripper = Gripper() if gripper is None else gripper()
 
-        self.debug = False
+        self.debug_draw_path = debug_draw_path  # Laggy, use video exporter
         if robot == UR5:
             self.gripper_base_offset = SE3(-4e-3, -2e-3, 81e-3)
             self.tool_offset = SE3(0, 0, 210e-3)
@@ -56,7 +56,6 @@ class RobotController:
             self.arm.q = [0, -pi / 2, 0, 0, 0, 0]  # Known safe start values
             for i in range(len(self.arm.links)):
                 self.arm.links[i].qlim = [-pi, pi]
-            self.debug = True
 
             self.arm.links[1].qlim = [-pi, 0]
             self.arm.links[4].qlim = [0, pi]
@@ -330,9 +329,8 @@ class RobotController:
             if 'gripper' in self.current_trajectory:
                 gripper_val = self.current_trajectory['gripper'].pop(0)
             self.gripper.setq(gripper_val)  # Must run to update base position
-            if self.debug:
-                pass
-                # Prop('objects\\dot', self.swift_env, transform=self.gripper.base)
+            if self.debug_draw_path:
+                Prop('objects\\dot', self.swift_env, transform=self.gripper.base)
             self.arm.q = current_step[:]
             action = {
                 'stop': False,
