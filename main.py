@@ -191,6 +191,10 @@ def full_scene_sim(exit_event, scene_file='altscene.json'):
         if estop_button.get_state():
             robot_can_move[0] = False
 
+        if exit_event.is_set():
+            env.close()
+            break
+
         # Spawn and manage plates
         for i, p in enumerate(plates_status):
             if p == "Absent":
