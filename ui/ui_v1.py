@@ -1,10 +1,10 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
 from threading import Thread
+from tkinter import messagebox, ttk
 
 
 class RobotControlGUI(tk.Tk):
-    def __init__(self, r1=None, r2=None, plates=None, robot_can_move=None, obstructions=None):
+    def __init__(self, exit_event, r1=None, r2=None, plates=None, robot_can_move=None, obstructions=None):
         super().__init__()
 
         # Capture shared variables

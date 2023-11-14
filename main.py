@@ -1,18 +1,19 @@
 import os
-from threading import Thread
+import signal
+from threading import Event, Thread
 
 import swift
 from ir_support import UR5
 from spatialmath import SE3
 
 from e_stop.e_stop import EStop
+from environment import create_sim_env
 from GantryBot.GantryBot import GantryBot
 from Gripper2.Gripper2 import Gripper2
 from pathplanner import PathPlan, read_scene
 from props import Prop
 from robotController import RobotController
 from ui.ui_v1 import run_gui_in_thread
-from environment import create_sim_env
 
 
 def get_reposition_table() -> list[PathPlan]:
@@ -108,7 +109,7 @@ def get_load_path() -> PathPlan:
     return path
 
 
-def full_scene_sim(scene_file='altscene.json'):
+def full_scene_sim(exit_event, scene_file='altscene.json'):
     env = swift.Swift()
     env.launch(realtime=True)
 
@@ -129,7 +130,7 @@ def full_scene_sim(scene_file='altscene.json'):
     robot_2_base = scene_offset * SE3(-0.7, 0, 0.65) * SE3.Rz(180, unit="deg")
 
     # Spawn robots
-    robot_1 = RobotController(null_path, robot=UR5, swift_env=env, transform=robot_1_base, debug_draw_path=True)  # Disable draw path here
+    robot_1 = RobotController(null_path, robot=UR5, swift_env=env, transform=robot_1_base, debug_draw_path=False)  # Disable draw path here
     robot_2 = RobotController(null_path, robot=GantryBot, swift_env=env, transform=robot_2_base, gripper=Gripper2)
 
     # Tool offset needed for object manipulation
@@ -164,8 +165,12 @@ def full_scene_sim(scene_file='altscene.json'):
     plate_id = 0
     p1_stop = False
 
-    estop_button = EStop(initial_pose=SE3(-1.3, 0, 0.65), use_physical_button=True)
+    estop_button = EStop(exit_event, initial_pose=SE3(-1.3, 0, 0.65), use_physical_button=True)
     estop_button.add_to_env(env)
+
+    
+    estop_button2 = EStop(exit_event, initial_pose=SE3(0, -1, 0.65), use_physical_button=False) # E-Stop for robot 2, doesn't actually listen to a physical button
+    estop_button2.add_to_env(env)
 
     frame = 0
     frame_subsampling = 5  # Only capture every nth frame. 1 -> inf, recommend 3 - 7
@@ -257,7 +262,7 @@ def full_scene_sim(scene_file='altscene.json'):
         if 'release' in action_2:
             held_id_2 = None
 
-        env.step(0 if do_video else 0.03)
+        env.step(0 if do_video else 0.01)
         filename = f"screenshot_{frame}.png"
         if do_video and any([p != "Absent" for p in plates_status]) and not frame % frame_subsampling:
             env.screenshot(filename)
@@ -280,5 +285,14 @@ def full_scene_sim(scene_file='altscene.json'):
             plates_status[plate_id] = "Stowed"
 
 
+
+
 if __name__ == '__main__':
-    full_scene_sim()
+    exit_event = Event()
+
+    def signal_handler(signum, frame):
+        print("Exiting...")
+        exit_event.set()
+
+    signal.signal(signal.SIGINT, signal_handler)
+    full_scene_sim(exit_event=exit_event)

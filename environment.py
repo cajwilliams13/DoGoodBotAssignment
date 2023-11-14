@@ -1,7 +1,10 @@
 from math import pi
+
 from spatialmath import SE3
+
 from e_stop.e_stop import EStop
 from props import Prop
+
 
 def create_sim_env(env, master_transform=None):
     """
@@ -30,10 +33,6 @@ def create_sim_env(env, master_transform=None):
         Prop('objects\\LightCurtain', env, transform=master_transform * table_offset * SE3(-1.53, -1.15, -0.7) * SE3.Rz(-pi / 2), color=(200, 50, 50)),
 
     ]
-
-    estop_button2 = EStop(initial_pose=SE3(0, -1, 0.65))
-    estop_button2.add_to_env(env)
-
 
     # Use XYZRz encoded position for gates
     gate_locations = [(-1.5, -2.4, 0, 0), (-1.5, 1.15, 0, 0)]
