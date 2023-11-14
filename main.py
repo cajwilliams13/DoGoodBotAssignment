@@ -13,7 +13,7 @@ from Gripper2.Gripper2 import Gripper2
 from pathplanner import PathPlan, read_scene
 from props import Prop
 from robotController import RobotController
-from ui.ui_v1 import run_gui_in_thread
+from ui.ui_v2 import run_gui_in_thread_v2
 
 
 def get_reposition_table() -> list[PathPlan]:
@@ -153,7 +153,7 @@ def full_scene_sim(exit_event, scene_file='altscene.json'):
 
     simulation_running = Event()
 
-    gui_thread = Thread(target=run_gui_in_thread, args=[exit_event],kwargs={"r1": robot_1, "r2": robot_2,
+    gui_thread = Thread(target=run_gui_in_thread_v2, args=[exit_event],kwargs={"r1": robot_1, "r2": robot_2,
                                                           "plates": plates_status, "robot_can_move": robot_can_move,
                                                           "obstructions": obstructions, "estop": estop_button, "simulation_running": simulation_running})
     gui_thread.start()
