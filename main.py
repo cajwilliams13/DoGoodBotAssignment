@@ -1,18 +1,19 @@
 import os
-from threading import Thread
+import signal
+from threading import Event, Thread
 
 import swift
 from ir_support import UR5
 from spatialmath import SE3
 
 from e_stop.e_stop import EStop
+from environment import create_sim_env
 from GantryBot.GantryBot import GantryBot
 from Gripper2.Gripper2 import Gripper2
 from pathplanner import PathPlan, read_scene
 from props import Prop
 from robotController import RobotController
-from ui.ui_v1 import run_gui_in_thread
-from environment import create_sim_env
+from ui.ui_v2 import run_gui_in_thread_v2
 
 
 def get_reposition_table() -> list[PathPlan]:
@@ -108,7 +109,7 @@ def get_load_path() -> PathPlan:
     return path
 
 
-def full_scene_sim(scene_file='altscene.json'):
+def full_scene_sim(exit_event, scene_file='altscene.json'):
     env = swift.Swift()
     env.launch(realtime=True)
 
@@ -129,7 +130,7 @@ def full_scene_sim(scene_file='altscene.json'):
     robot_2_base = scene_offset * SE3(-0.7, 0, 0.65) * SE3.Rz(180, unit="deg")
 
     # Spawn robots
-    robot_1 = RobotController(null_path, robot=UR5, swift_env=env, transform=robot_1_base, debug_draw_path=True)  # Disable draw path here
+    robot_1 = RobotController(null_path, robot=UR5, swift_env=env, transform=robot_1_base, debug_draw_path=False)  # Disable draw path here
     robot_2 = RobotController(null_path, robot=GantryBot, swift_env=env, transform=robot_2_base, gripper=Gripper2)
 
     # Tool offset needed for object manipulation
@@ -147,9 +148,14 @@ def full_scene_sim(scene_file='altscene.json'):
     obstructions = [False for _ in range(8)]
     plates_status = ["Absent" for _ in range(8)]
 
-    gui_thread = Thread(target=run_gui_in_thread, kwargs={"r1": robot_1, "r2": robot_2,
+    estop_button = EStop(exit_event, initial_pose=SE3(-1.3, 0, 0.65), use_physical_button=True)
+    estop_button2 = EStop(exit_event, initial_pose=SE3(0, -1, 0.65), use_physical_button=False) # E-Stop for robot 2, doesn't actually listen to a physical button
+
+    simulation_running = Event()
+
+    gui_thread = Thread(target=run_gui_in_thread_v2, args=[exit_event],kwargs={"r1": robot_1, "r2": robot_2,
                                                           "plates": plates_status, "robot_can_move": robot_can_move,
-                                                          "obstructions": obstructions})
+                                                          "obstructions": obstructions, "estop": estop_button, "simulation_running": simulation_running})
     gui_thread.start()
 
     obstruction_objects = [Prop("objects\\dot", env, transform=far_far_away) for _ in obstructions]
@@ -164,8 +170,9 @@ def full_scene_sim(scene_file='altscene.json'):
     plate_id = 0
     p1_stop = False
 
-    estop_button = EStop(initial_pose=SE3(-1.3, 0, 0.65), use_physical_button=True)
+    
     estop_button.add_to_env(env)
+    estop_button2.add_to_env(env)
 
     frame = 0
     frame_subsampling = 5  # Only capture every nth frame. 1 -> inf, recommend 3 - 7
@@ -181,10 +188,29 @@ def full_scene_sim(scene_file='altscene.json'):
     # Manually stitch frames afterward using ffmpeg, blender etc
 
     while True:
+        if exit_event.is_set():
+            env.close()
+            break
+
         frame += 1
         # Check physical estop
-        if estop_button.get_state():
-            robot_can_move[0] = False
+        estop_pressed = estop_button.get_state()
+        sim_running = simulation_running.is_set()
+
+        if estop_pressed and sim_running:
+            # If the estop is pressed and the sim is still running, stop the sim
+            simulation_running.clear()
+        elif not estop_pressed and not sim_running:
+            # If neither are true do nothing
+            pass
+        elif estop_pressed and not sim_running:
+            # If the estop is pressed and the sim is not running do nothing
+            pass
+        elif not estop_pressed and sim_running:
+            # If the estop is not pressed and the sim is running do nothing
+            pass
+
+        robot_can_move[0] = simulation_running.is_set()
 
         # Spawn and manage plates
         for i, p in enumerate(plates_status):
@@ -257,7 +283,7 @@ def full_scene_sim(scene_file='altscene.json'):
         if 'release' in action_2:
             held_id_2 = None
 
-        env.step(0 if do_video else 0.03)
+        env.step(0 if do_video else 0.01)
         filename = f"screenshot_{frame}.png"
         if do_video and any([p != "Absent" for p in plates_status]) and not frame % frame_subsampling:
             env.screenshot(filename)
@@ -280,5 +306,14 @@ def full_scene_sim(scene_file='altscene.json'):
             plates_status[plate_id] = "Stowed"
 
 
+
+
 if __name__ == '__main__':
-    full_scene_sim()
+    exit_event = Event()
+
+    def signal_handler(signum, frame):
+        print("Exiting...")
+        exit_event.set()
+
+    signal.signal(signal.SIGINT, signal_handler)
+    full_scene_sim(exit_event=exit_event)
