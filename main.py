@@ -148,7 +148,7 @@ def full_scene_sim(exit_event, scene_file='altscene.json'):
     obstructions = [False for _ in range(8)]
     plates_status = ["Absent" for _ in range(8)]
 
-    gui_thread = Thread(target=run_gui_in_thread, kwargs={"r1": robot_1, "r2": robot_2,
+    gui_thread = Thread(target=run_gui_in_thread, args=[exit_event],kwargs={"r1": robot_1, "r2": robot_2,
                                                           "plates": plates_status, "robot_can_move": robot_can_move,
                                                           "obstructions": obstructions})
     gui_thread.start()

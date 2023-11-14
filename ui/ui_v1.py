@@ -4,7 +4,7 @@ from tkinter import messagebox, ttk
 
 
 class RobotControlGUI(tk.Tk):
-    def __init__(self, exit_event, r1=None, r2=None, plates=None, robot_can_move=None, obstructions=None):
+    def __init__(self, r1=None, r2=None, plates=None, robot_can_move=None, obstructions=None):
         super().__init__()
 
         # Capture shared variables
@@ -137,10 +137,13 @@ class RobotControlGUI(tk.Tk):
         print(self.obstructions)
 
 
-def run_gui_in_thread(**kwargs):
+def run_gui_in_thread(exit_event, **kwargs):
     app = RobotControlGUI(**kwargs)
-    app.mainloop()
-
+    while True:
+        app.update_idletasks()
+        app.update()
+        if exit_event.is_set():
+            break
 
 if __name__ == "__main__":
     gui_thread = Thread(target=run_gui_in_thread)
