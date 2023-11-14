@@ -148,9 +148,14 @@ def full_scene_sim(exit_event, scene_file='altscene.json'):
     obstructions = [False for _ in range(8)]
     plates_status = ["Absent" for _ in range(8)]
 
+    estop_button = EStop(exit_event, initial_pose=SE3(-1.3, 0, 0.65), use_physical_button=True)
+    estop_button2 = EStop(exit_event, initial_pose=SE3(0, -1, 0.65), use_physical_button=False) # E-Stop for robot 2, doesn't actually listen to a physical button
+
+    simulation_running = Event()
+
     gui_thread = Thread(target=run_gui_in_thread, args=[exit_event],kwargs={"r1": robot_1, "r2": robot_2,
                                                           "plates": plates_status, "robot_can_move": robot_can_move,
-                                                          "obstructions": obstructions})
+                                                          "obstructions": obstructions, "estop": estop_button, "simulation_running": simulation_running})
     gui_thread.start()
 
     obstruction_objects = [Prop("objects\\dot", env, transform=far_far_away) for _ in obstructions]
@@ -165,11 +170,8 @@ def full_scene_sim(exit_event, scene_file='altscene.json'):
     plate_id = 0
     p1_stop = False
 
-    estop_button = EStop(exit_event, initial_pose=SE3(-1.3, 0, 0.65), use_physical_button=True)
-    estop_button.add_to_env(env)
-
     
-    estop_button2 = EStop(exit_event, initial_pose=SE3(0, -1, 0.65), use_physical_button=False) # E-Stop for robot 2, doesn't actually listen to a physical button
+    estop_button.add_to_env(env)
     estop_button2.add_to_env(env)
 
     frame = 0
@@ -186,14 +188,29 @@ def full_scene_sim(exit_event, scene_file='altscene.json'):
     # Manually stitch frames afterward using ffmpeg, blender etc
 
     while True:
-        frame += 1
-        # Check physical estop
-        if estop_button.get_state():
-            robot_can_move[0] = False
-
         if exit_event.is_set():
             env.close()
             break
+
+        frame += 1
+        # Check physical estop
+        estop_pressed = estop_button.get_state()
+        sim_running = simulation_running.is_set()
+
+        if estop_pressed and sim_running:
+            # If the estop is pressed and the sim is still running, stop the sim
+            simulation_running.clear()
+        elif not estop_pressed and not sim_running:
+            # If neither are true do nothing
+            pass
+        elif estop_pressed and not sim_running:
+            # If the estop is pressed and the sim is not running do nothing
+            pass
+        elif not estop_pressed and sim_running:
+            # If the estop is not pressed and the sim is running do nothing
+            pass
+
+        robot_can_move[0] = simulation_running.is_set()
 
         # Spawn and manage plates
         for i, p in enumerate(plates_status):

@@ -4,18 +4,18 @@ from tkinter import messagebox, ttk
 
 
 class RobotControlGUI(tk.Tk):
-    def __init__(self, r1=None, r2=None, plates=None, robot_can_move=None, obstructions=None):
+    def __init__(self, r1=None, r2=None, plates=None, robot_can_move=None, obstructions=None, estop=None, simulation_running=None):
         super().__init__()
 
         # Capture shared variables
         self.robot_1 = r1
         self.robot_2 = r2
         self.plates = plates
-        self.robots_allowed_to_run = robot_can_move
+        self.estop = estop
+        self.simulation_running = simulation_running
         self.obstructions = obstructions
 
         self.title("Robot Control Interface")
-        self.estop_active = True
 
         # Create frame for Production cell control
         prod_cell_frame = ttk.LabelFrame(self, text="Production Cell Control")
@@ -41,7 +41,7 @@ class RobotControlGUI(tk.Tk):
         self.create_joint_controls("Robot Joint Control 2", 2, 3, 2, 0)
 
         # Disable robot control panels if E-STOP is pressed
-        if self.estop_active:
+        if self.estop.get_state():
             self.disable_controls()
 
     def create_joint_controls(self, title, robot_num, joints, col, row):
@@ -77,10 +77,10 @@ class RobotControlGUI(tk.Tk):
             r.tweak(joint, -5)
 
     def start(self):
-        if self.estop_active:
+        if self.estop.get_state():
             messagebox.showerror("Error", "Please release the E-STOP first!")
-        else:
-            self.robots_allowed_to_run[0] = True
+        self.simulation_running.set()
+        
 
     def disable_controls(self):
         for child in self.winfo_children():
@@ -90,8 +90,10 @@ class RobotControlGUI(tk.Tk):
                     widget.configure(state=tk.DISABLED)
 
     def toggle_estop(self):
-        if self.estop_active:
-            self.estop_active = False
+        estop_active = self.estop.get_state()
+
+        if estop_active:
+            self.estop.release()
             self.estop_btn.config(text="E-STOP")
             self.start_btn.config(state=tk.NORMAL)
 
@@ -101,8 +103,7 @@ class RobotControlGUI(tk.Tk):
                     for widget in child.winfo_children():
                         widget.configure(state=tk.NORMAL)
         else:
-            self.robots_allowed_to_run[0] = False
-            self.estop_active = True
+            self.estop.press()
             self.estop_btn.config(text="Release E-STOP")
             self.disable_controls()
 
